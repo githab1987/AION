@@ -149,11 +149,28 @@ class RuntimeEngine:
         intention.status = IntentionState.VERIFYING
         self._save_intention(intention)
 
-        verification = self.verification_handler(
-            intention,
-            observation,
-            evidence,
-        )
+        try:
+            verification = self.verification_handler(
+                intention,
+                observation,
+                evidence,
+            )
+
+        except Exception as exc:
+            require_transition(
+                intention.status,
+                IntentionState.FAILED,
+                INTENTION_TRANSITIONS,
+            )
+            intention.status = IntentionState.FAILED
+            self._save_intention(intention)
+
+            return RuntimeResult(
+                intention=intention,
+                action=action,
+                observation=observation,
+                evidence=evidence,
+            )
 
         self._save_verification(verification)
 
