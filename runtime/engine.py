@@ -12,6 +12,9 @@ from core.states import (
     ActionState,
     IntentionState,
     VerificationState,
+    INTENTION_TRANSITIONS,
+    ACTION_TRANSITIONS,
+    VERIFICATION_TRANSITIONS,
     require_transition,
 )
 
@@ -40,7 +43,8 @@ class RuntimeEngine:
         require_transition(
             intention.status,
             IntentionState.PLANNED,
-            {
+            INTENTION_TRANSITIONS,
+        )
                 IntentionState.DECLARED: {
                     IntentionState.PLANNED,
                     IntentionState.FAILED,
@@ -52,7 +56,8 @@ class RuntimeEngine:
         require_transition(
             intention.status,
             IntentionState.EXECUTING,
-            {
+            INTENTION_TRANSITIONS,
+        )
                 IntentionState.PLANNED: {
                     IntentionState.EXECUTING,
                     IntentionState.FAILED,
@@ -64,7 +69,8 @@ class RuntimeEngine:
         require_transition(
             action.status,
             ActionState.EXECUTING,
-            {
+            ACTION_TRANSITIONS,
+        )
                 ActionState.PLANNED: {
                     ActionState.EXECUTING,
                     ActionState.FAILED,
@@ -89,7 +95,8 @@ class RuntimeEngine:
         require_transition(
             intention.status,
             IntentionState.OBSERVING,
-            {
+            INTENTION_TRANSITIONS,
+        )
                 IntentionState.EXECUTING: {
                     IntentionState.OBSERVING,
                     IntentionState.FAILED,
@@ -101,7 +108,8 @@ class RuntimeEngine:
         require_transition(
             intention.status,
             IntentionState.VERIFYING,
-            {
+            INTENTION_TRANSITIONS,
+       )
                 IntentionState.OBSERVING: {
                     IntentionState.VERIFYING,
                     IntentionState.FAILED,
