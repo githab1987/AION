@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from core.models import (
@@ -8,6 +9,11 @@ from core.models import (
     Verification,
 )
 from core.persistence import Persistence
+from core.states import (
+    ActionState,
+    IntentionState,
+    VerificationState,
+)
 
 
 class SupabasePersistence(Persistence):
@@ -16,8 +22,6 @@ class SupabasePersistence(Persistence):
 
     This layer translates AION domain models into
     Supabase-compatible records.
-
-    Database client integration will be added separately.
     """
 
     def __init__(self, client):
@@ -110,6 +114,12 @@ class SupabasePersistence(Persistence):
             goal=row["goal"],
             target=row.get("target"),
             constraints=row.get("constraints", []),
+            status=IntentionState(
+                row.get(
+                    "status",
+                    IntentionState.DECLARED.value,
+                )
+            ),
         )
 
     def get_action(
@@ -138,6 +148,13 @@ class SupabasePersistence(Persistence):
             target=row.get("target"),
             input=row.get("input", {}),
             expected_state=row.get("expected_state", {}),
+            status=ActionState(
+                row.get(
+                    "status",
+                    ActionState.PLANNED.value,
+                )
+            ),
+            result=row.get("result"),
         )
 
     def get_observation(
@@ -158,6 +175,13 @@ class SupabasePersistence(Persistence):
 
         row = response.data[0]
 
+        observed_at = row.get("observed_at")
+
+        if isinstance(observed_at, str):
+            observed_at = datetime.fromisoformat(
+                observed_at.replace("Z", "+00:00")
+            )
+
         return Observation(
             id=row["id"],
             action_id=row["action_id"],
@@ -165,4 +189,5 @@ class SupabasePersistence(Persistence):
             state=row.get("state", {}),
             facts=row.get("facts", []),
             source=row.get("source", "runtime"),
+            observed_at=observed_at,
         )
