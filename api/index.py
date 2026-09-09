@@ -1,5 +1,6 @@
 import os
 from typing import Any, Dict
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 
@@ -39,6 +40,7 @@ def verification_handler(
     evidence: list[Evidence],
 ) -> Verification:
     return Verification(
+        id=str(uuid4()),
         intention_id=intention.id,
         claim=intention.goal,
         evidence=evidence,
