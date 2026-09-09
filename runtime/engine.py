@@ -45,12 +45,6 @@ class RuntimeEngine:
             IntentionState.PLANNED,
             INTENTION_TRANSITIONS,
         )
-                IntentionState.DECLARED: {
-                    IntentionState.PLANNED,
-                    IntentionState.FAILED,
-                }
-            },
-        )
         intention.status = IntentionState.PLANNED
 
         require_transition(
@@ -58,24 +52,12 @@ class RuntimeEngine:
             IntentionState.EXECUTING,
             INTENTION_TRANSITIONS,
         )
-                IntentionState.PLANNED: {
-                    IntentionState.EXECUTING,
-                    IntentionState.FAILED,
-                }
-            },
-        )
         intention.status = IntentionState.EXECUTING
 
         require_transition(
             action.status,
             ActionState.EXECUTING,
             ACTION_TRANSITIONS,
-        )
-                ActionState.PLANNED: {
-                    ActionState.EXECUTING,
-                    ActionState.FAILED,
-                }
-            },
         )
         action.status = ActionState.EXECUTING
 
@@ -97,24 +79,12 @@ class RuntimeEngine:
             IntentionState.OBSERVING,
             INTENTION_TRANSITIONS,
         )
-                IntentionState.EXECUTING: {
-                    IntentionState.OBSERVING,
-                    IntentionState.FAILED,
-                }
-            },
-        )
         intention.status = IntentionState.OBSERVING
 
         require_transition(
             intention.status,
             IntentionState.VERIFYING,
             INTENTION_TRANSITIONS,
-       )
-                IntentionState.OBSERVING: {
-                    IntentionState.VERIFYING,
-                    IntentionState.FAILED,
-                }
-            },
         )
         intention.status = IntentionState.VERIFYING
 
