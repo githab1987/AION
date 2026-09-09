@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException
@@ -13,10 +14,7 @@ from core.states import VerificationState
 from runtime.engine import RuntimeEngine
 
 
-app = FastAPI(
-    title="AION API",
-    version="0.1",
-)
+app = FastAPI(title="AION API", version="0.1")
 
 
 @app.get("/api")
@@ -29,10 +27,6 @@ def health():
 
 
 def action_handler(action: Action) -> Dict[str, Any]:
-    """
-    Temporary deterministic handler for API -> RuntimeEngine smoke test.
-    Will later be replaced by capability dispatch.
-    """
     return {
         "success": True,
         "action_id": action.id,
@@ -44,9 +38,6 @@ def verification_handler(
     observation: Observation,
     evidence: list[Evidence],
 ) -> Verification:
-    """
-    Temporary deterministic verification for API bridge smoke test.
-    """
     return Verification(
         intention_id=intention.id,
         claim=intention.goal,
@@ -56,6 +47,29 @@ def verification_handler(
     )
 
 
+def build_persistence():
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_KEY")
+
+    if not supabase_url or not supabase_key:
+        return None
+
+    try:
+        from supabase import create_client
+
+        from persistence.supabase import SupabasePersistence
+
+        client = create_client(
+            supabase_url,
+            supabase_key,
+        )
+
+        return SupabasePersistence(client)
+
+    except Exception:
+        return None
+
+
 @app.post("/api/run")
 def run_intention(payload: dict):
     try:
@@ -63,23 +77,28 @@ def run_intention(payload: dict):
         action_data = payload["action"]
         observation_data = payload["observation"]
 
+        evidence_data = payload.get("evidence", [])
+
         intention = Intention(
             id=intention_data["id"],
             goal=intention_data["goal"],
             target=intention_data.get("target"),
-            constraints=intention_data.get("constraints", []),
+            constraints=intention_data.get(
+                "constraints",
+                [],
+            ),
         )
 
         action = Action(
             id=action_data["id"],
-            intention_id=action_data.get(
-                "intention_id",
-                intention.id,
-            ),
+            intention_id=action_data["intention_id"],
             actor=action_data["actor"],
             capability_id=action_data["capability_id"],
             target=action_data.get("target"),
-            input=action_data.get("input", {}),
+            input=action_data.get(
+                "input",
+                {},
+            ),
             expected_state=action_data.get(
                 "expected_state",
                 {},
@@ -88,13 +107,16 @@ def run_intention(payload: dict):
 
         observation = Observation(
             id=observation_data["id"],
-            action_id=observation_data.get(
-                "action_id",
-                action.id,
-            ),
+            action_id=observation_data["action_id"],
             target=observation_data.get("target"),
-            state=observation_data.get("state", {}),
-            facts=observation_data.get("facts", []),
+            state=observation_data.get(
+                "state",
+                {},
+            ),
+            facts=observation_data.get(
+                "facts",
+                [],
+            ),
             source=observation_data.get(
                 "source",
                 "api",
@@ -104,21 +126,27 @@ def run_intention(payload: dict):
         evidence = [
             Evidence(
                 id=item["id"],
-                observation_id=item.get(
-                    "observation_id",
-                    observation.id,
-                ),
+                observation_id=item["observation_id"],
                 claim=item["claim"],
-                data=item.get("data", {}),
-                source=item.get("source", "api"),
-                reliability=item.get("reliability"),
+                data=item.get(
+                    "data",
+                    {},
+                ),
+                source=item.get(
+                    "source",
+                    "api",
+                ),
+                reliability=item.get(
+                    "reliability"
+                ),
             )
-            for item in payload.get("evidence", [])
+            for item in evidence_data
         ]
 
         engine = RuntimeEngine(
             action_handler=action_handler,
             verification_handler=verification_handler,
+            persistence=build_persistence(),
         )
 
         result = engine.run(
