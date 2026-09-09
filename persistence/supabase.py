@@ -12,7 +12,6 @@ from core.persistence import Persistence
 from core.states import (
     ActionState,
     IntentionState,
-    VerificationState,
 )
 
 
@@ -82,13 +81,15 @@ class SupabasePersistence(Persistence):
         self,
         verification: Verification,
     ) -> None:
-        self.client.table("verifications").insert(
+        self.client.table("verifications").upsert(
             {
+                "id": verification.id,
                 "intention_id": verification.intention_id,
                 "claim": verification.claim,
                 "result": verification.result.value,
                 "reason": verification.reason,
-            }
+            },
+            on_conflict="id",
         ).execute()
 
     def get_intention(
