@@ -5,10 +5,10 @@ from api.index import app
 client = TestClient(app)
 
 def test_api_health():
-    response = client.get("/api")
+response = client.get("/api")
 
-    assert response.status_code == 200
-    assert response.json() == {
+assert response.status_code == 200
+assert response.json() == {
     "name": "AION",
     "version": "0.1",
     "status": "online",
