@@ -95,11 +95,11 @@ class RuntimeResult:
                 "goal": self.intention.goal,
                 "target": self.intention.target,
                 "constraints": self.intention.constraints,
-                "status": self.intention.status,
+                "status": self.intention.status.value,
             },
             "action": None if self.action is None else {
                 "id": self.action.id,
-                "status": self.action.status,
+                "status": self.action.status.value,
                 "result": self.action.result,
             },
             "observation": None if self.observation is None else {
@@ -121,7 +121,7 @@ class RuntimeResult:
             ],
             "verification": None if self.verification is None else {
                 "claim": self.verification.claim,
-                "result": self.verification.result,
+                "result": self.verification.result.value,
                 "reason": self.verification.reason,
                 "evidence_count": len(self.verification.evidence),
             },
