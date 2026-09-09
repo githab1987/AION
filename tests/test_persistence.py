@@ -117,5 +117,3 @@ def test_save_verification():
         "reason": "test verified",
     }
     assert call["options"]["on_conflict"] == "id"
-
-Commit satu file ini saja, Bos. Setelah itu bilang “uda”. Saya cek hasil commit dan Actions; kalau masih gagal, kita bedah error berikutnya tanpa mengacak file lain.
