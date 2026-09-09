@@ -43,8 +43,8 @@ class FakeSupabaseClient:
     def __init__(self):
         self.calls = []
 
-    def table(self, table):
-        return FakeQuery(self.calls, table)
+    def table(self, table_name):
+        return FakeQuery(self.calls, table_name)
 
 
 def test_persistence_interface_exists():
@@ -66,8 +66,14 @@ def test_save_intention():
 
     assert call["table"] == "intentions"
     assert call["operation"] == "upsert"
-    assert call["payload"]["id"] == "intent-1"
-    assert call["payload"]["goal"] == "test action"
+    assert call["payload"] == {
+        "id": "intent-1",
+        "goal": "test action",
+        "target": None,
+        "constraints": [],
+        "status": "DECLARED",
+    }
+    assert call["options"]["on_conflict"] == "id"
 
 
 def test_save_evidence():
@@ -76,9 +82,11 @@ def test_save_evidence():
 
     evidence = Evidence(
         id="evidence-1",
-        intention_id="intent-1",
+        observation_id="observation-1",
+        claim="test claim",
         source="test",
         data={"ok": True},
+        reliability=1.0,
     )
 
     persistence.save_evidence(evidence)
@@ -87,8 +95,15 @@ def test_save_evidence():
 
     assert call["table"] == "evidence"
     assert call["operation"] == "upsert"
-    assert call["payload"]["id"] == "evidence-1"
-    assert call["payload"]["intention_id"] == "intent-1"
+    assert call["payload"] == {
+        "id": "evidence-1",
+        "observation_id": "observation-1",
+        "claim": "test claim",
+        "data": {"ok": True},
+        "source": "test",
+        "reliability": 1.0,
+    }
+    assert call["options"]["on_conflict"] == "id"
 
 
 def test_save_verification():
