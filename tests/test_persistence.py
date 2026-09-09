@@ -127,8 +127,44 @@ def test_save_verification():
     assert call["payload"] == {
         "id": "verification-1",
         "intention_id": "intent-1",
-        "claim": "action succeeded",
+       def test_get_verification():
+    client = FakeSupabaseClient()
+    persistence = SupabasePersistence(client)
+
+    query = FakeQuery(client.calls, "verifications")
+
+    query.execute = lambda: type(
+        "Response",
+        (),
+        {
+            "data": [
+                {
+                    "id": "verification-1",
+                    "intention_id": "intent-1",
+                    "claim": "action succeeded",
+                    "result": "VERIFIED",
+                    "reason": "test verified",
+                }
+            ]
+        },
+    )()
+
+    client.table = lambda table_name: query
+
+    verification = persistence.get_verification(
+        "verification-1"
+    )
+
+    assert verification is not None
+    assert verification.id == "verification-1"
+    assert verification.intention_id == "intent-1"
+    assert verification.claim == "action succeeded"
+    assert verification.result == VerificationState.VERIFIED
+    assert verification.reason == "test verified"
+    assert verification.evidence == [] "claim": "action succeeded",
         "result": "VERIFIED",
         "reason": "test verified",
     }
     assert call["options"]["on_conflict"] == "id"
+
+
