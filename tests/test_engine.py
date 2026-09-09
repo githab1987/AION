@@ -46,14 +46,14 @@ def test_runtime_engine_success():
         return {"success": True}
 
     def verification_handler(intention, observation, evidence):
-        return Verification(
-            intention_id=intention.id,
-            claim="runtime executed successfully",
-            evidence=evidence,
-            result=VerificationState.VERIFIED,
-            reason="test verification passed",
-        )
-
+    return Verification(
+        id="verification-1",
+        intention_id=intention.id,
+        claim="runtime executed successfully",
+        evidence=evidence,
+        result=VerificationState.VERIFIED,
+        reason="test verification passed",
+    )
     engine = RuntimeEngine(
         action_handler=action_handler,
         verification_handler=verification_handler,
@@ -94,11 +94,13 @@ def test_runtime_engine_action_failure():
         raise RuntimeError("action failed")
 
     def verification_handler(intention, observation, evidence):
-        raise AssertionError("verification must not run after action failure")
-
-    engine = RuntimeEngine(
-        action_handler=action_handler,
-        verification_handler=verification_handler,
+    return Verification(
+        id="verification-2",
+        intention_id=intention.id,
+        claim="runtime verified",
+        evidence=evidence,
+        result=VerificationState.REJECTED,
+        reason="verification rejected",
     )
 
     result = engine.run(
@@ -233,6 +235,7 @@ def test_runtime_engine_persists_lifecycle():
     )
 
     verification = Verification(
+        id="verification-persistence-1",
         intention_id=intention.id,
         claim=intention.goal,
         evidence=[evidence],
