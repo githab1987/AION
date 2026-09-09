@@ -8,6 +8,7 @@ from core.models import (
     RuntimeResult,
     Verification,
 )
+from core.persistence import Persistence
 from core.states import (
     ActionState,
     IntentionState,
@@ -26,9 +27,37 @@ class RuntimeEngine:
             [Intention, Observation, list[Evidence]],
             Verification,
         ],
+        persistence: Optional[Persistence] = None,
     ):
         self.action_handler = action_handler
         self.verification_handler = verification_handler
+        self.persistence = persistence
+
+    def _save_intention(self, intention: Intention) -> None:
+        if self.persistence is not None:
+            self.persistence.save_intention(intention)
+
+    def _save_action(self, action: Action) -> None:
+        if self.persistence is not None:
+            self.persistence.save_action(action)
+
+    def _save_observation(
+        self,
+        observation: Observation,
+    ) -> None:
+        if self.persistence is not None:
+            self.persistence.save_observation(observation)
+
+    def _save_evidence(self, evidence: Evidence) -> None:
+        if self.persistence is not None:
+            self.persistence.save_evidence(evidence)
+
+    def _save_verification(
+        self,
+        verification: Verification,
+    ) -> None:
+        if self.persistence is not None:
+            self.persistence.save_verification(verification)
 
     def run(
         self,
@@ -45,6 +74,7 @@ class RuntimeEngine:
             INTENTION_TRANSITIONS,
         )
         intention.status = IntentionState.PLANNED
+        self._save_intention(intention)
 
         require_transition(
             intention.status,
@@ -52,6 +82,7 @@ class RuntimeEngine:
             INTENTION_TRANSITIONS,
         )
         intention.status = IntentionState.EXECUTING
+        self._save_intention(intention)
 
         require_transition(
             action.status,
@@ -59,6 +90,7 @@ class RuntimeEngine:
             ACTION_TRANSITIONS,
         )
         action.status = ActionState.EXECUTING
+        self._save_action(action)
 
         try:
             action.result = self.action_handler(action)
@@ -69,6 +101,7 @@ class RuntimeEngine:
                 ACTION_TRANSITIONS,
             )
             action.status = ActionState.SUCCEEDED
+            self._save_action(action)
 
         except Exception as exc:
             require_transition(
@@ -87,6 +120,9 @@ class RuntimeEngine:
 
             action.result = {"error": str(exc)}
 
+            self._save_action(action)
+            self._save_intention(intention)
+
             return RuntimeResult(
                 intention=intention,
                 action=action,
@@ -98,6 +134,12 @@ class RuntimeEngine:
             INTENTION_TRANSITIONS,
         )
         intention.status = IntentionState.OBSERVING
+        self._save_intention(intention)
+
+        self._save_observation(observation)
+
+        for item in evidence:
+            self._save_evidence(item)
 
         require_transition(
             intention.status,
@@ -105,12 +147,15 @@ class RuntimeEngine:
             INTENTION_TRANSITIONS,
         )
         intention.status = IntentionState.VERIFYING
+        self._save_intention(intention)
 
         verification = self.verification_handler(
             intention,
             observation,
             evidence,
         )
+
+        self._save_verification(verification)
 
         if verification.result == VerificationState.VERIFIED:
             require_transition(
@@ -127,6 +172,8 @@ class RuntimeEngine:
                 INTENTION_TRANSITIONS,
             )
             intention.status = IntentionState.FAILED
+
+        self._save_intention(intention)
 
         return RuntimeResult(
             intention=intention,
