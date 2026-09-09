@@ -66,3 +66,44 @@ def test_runtime_engine_success():
     assert result.action.status.value == "SUCCEEDED"
     assert result.verification.result.value == "VERIFIED"
     assert result.action.result["success"] is True
+
+def test_runtime_engine_action_failure():
+    intention = Intention(
+        id="intent-2",
+        goal="test runtime failure",
+    )
+
+    action = Action(
+        id="action-2",
+        intention_id="intent-2",
+        actor="test",
+        capability_id="test-capability",
+    )
+
+    observation = Observation(
+        id="observation-2",
+        action_id="action-2",
+        target=None,
+    )
+
+    def action_handler(action):
+        raise RuntimeError("action failed")
+
+    def verification_handler(intention, observation, evidence):
+        raise AssertionError("verification must not run after action failure")
+
+    engine = RuntimeEngine(
+        action_handler=action_handler,
+        verification_handler=verification_handler,
+    )
+
+    result = engine.run(
+        intention=intention,
+        action=action,
+        observation=observation,
+    )
+
+    assert result.intention.status.value == "FAILED"
+    assert result.action.status.value == "FAILED"
+    assert result.action.result["error"] == "action failed"
+    assert result.verification is None
