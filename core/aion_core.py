@@ -179,11 +179,13 @@ class AIONCore:
             result = Status.FAILED
 
         if result == Status.COMPLETED:
-            intention.status = Status.COMPLETED
-        elif result == Status.FAILED:
-            intention.status = Status.FAILED
-        else:
-            intention.status = Status.UNKNOWN
+           intention.status = Status.COMPLETED
+       elif result == Status.FAILED:
+           intention.status = Status.FAILED
+       elif result == Status.UNVERIFIED:
+           intention.status = Status.UNVERIFIED
+       else:
+           intention.status = result
 
         verification = Verification(
             intention.goal,
