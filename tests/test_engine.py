@@ -155,3 +155,121 @@ def test_runtime_engine_verification_failure():
     assert result.action.status.value == "SUCCEEDED"
     assert result.verification.result.value == "REJECTED"
     assert result.intention.status.value == "FAILED"
+
+
+class FakePersistence:
+    def __init__(self):
+        self.calls = []
+
+    def save_intention(self, intention):
+        self.calls.append(
+            ("intention", intention.id, intention.status)
+        )
+
+    def save_action(self, action):
+        self.calls.append(
+            ("action", action.id, action.status)
+        )
+
+    def save_observation(self, observation):
+        self.calls.append(
+            ("observation", observation.id)
+        )
+
+    def save_evidence(self, evidence):
+        self.calls.append(
+            ("evidence", evidence.id)
+        )
+
+    def save_verification(self, verification):
+        self.calls.append(
+            ("verification", verification.intention_id)
+        )
+
+    def get_intention(self, intention_id):
+        return None
+
+    def get_action(self, action_id):
+        return None
+
+    def get_observation(self, observation_id):
+        return None
+
+
+def test_runtime_engine_persists_lifecycle():
+    persistence = FakePersistence()
+
+    intention = Intention(
+        id="intent-persistence-1",
+        goal="test runtime persistence",
+    )
+
+    action = Action(
+        id="action-persistence-1",
+        intention_id=intention.id,
+        actor="test",
+        capability_id="test-capability",
+    )
+
+    observation = Observation(
+        id="observation-persistence-1",
+        action_id=action.id,
+        target="system",
+        state={"success": True},
+        facts=["action succeeded"],
+    )
+
+    evidence = Evidence(
+        id="evidence-persistence-1",
+        observation_id=observation.id,
+        claim="action succeeded",
+        data={"success": True},
+        source="test",
+        reliability=1.0,
+    )
+
+    verification = Verification(
+        intention_id=intention.id,
+        claim=intention.goal,
+        evidence=[evidence],
+        result=VerificationState.VERIFIED,
+        reason="persistence test verified",
+    )
+
+    engine = RuntimeEngine(
+        action_handler=lambda action: {
+            "success": True,
+        },
+        verification_handler=lambda intention, observation, evidence: (
+            verification
+        ),
+        persistence=persistence,
+    )
+
+    result = engine.run(
+        intention=intention,
+        action=action,
+        observation=observation,
+        evidence=[evidence],
+    )
+
+    assert result.intention.status == IntentionState.COMPLETED
+    assert result.action.status == ActionState.SUCCEEDED
+    assert result.verification.result == VerificationState.VERIFIED
+
+    call_types = [
+        call[0]
+        for call in persistence.calls
+    ]
+
+    assert "intention" in call_types
+    assert "action" in call_types
+    assert "observation" in call_types
+    assert "evidence" in call_types
+    assert "verification" in call_types
+
+    assert persistence.calls[-1] == (
+        "intention",
+        "intent-persistence-1",
+        IntentionState.COMPLETED,
+    )
