@@ -107,3 +107,51 @@ def test_runtime_engine_action_failure():
     assert result.action.status.value == "FAILED"
     assert result.action.result["error"] == "action failed"
     assert result.verification is None
+
+
+def test_runtime_engine_verification_failure():
+    intention = Intention(
+        id="intent-3",
+        goal="test verification failure",
+    )
+
+    action = Action(
+        id="action-3",
+        intention_id="intent-3",
+        actor="test",
+        capability_id="test-capability",
+    )
+
+    observation = Observation(
+        id="observation-3",
+        action_id="action-3",
+        target=None,
+        state={"success": True},
+    )
+
+    def action_handler(action):
+        return {"success": True}
+
+    def verification_handler(intention, observation, evidence):
+        return Verification(
+            intention_id=intention.id,
+            claim="runtime verified",
+            evidence=evidence,
+            result=VerificationState.REJECTED,
+            reason="verification rejected",
+        )
+
+    engine = RuntimeEngine(
+        action_handler=action_handler,
+        verification_handler=verification_handler,
+    )
+
+    result = engine.run(
+        intention=intention,
+        action=action,
+        observation=observation,
+    )
+
+    assert result.action.status.value == "SUCCEEDED"
+    assert result.verification.result.value == "REJECTED"
+    assert result.intention.status.value == "FAILED"
