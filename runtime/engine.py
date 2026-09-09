@@ -14,7 +14,6 @@ from core.states import (
     VerificationState,
     INTENTION_TRANSITIONS,
     ACTION_TRANSITIONS,
-    VERIFICATION_TRANSITIONS,
     require_transition,
 )
 
@@ -63,10 +62,29 @@ class RuntimeEngine:
 
         try:
             action.result = self.action_handler(action)
+
+            require_transition(
+                action.status,
+                ActionState.SUCCEEDED,
+                ACTION_TRANSITIONS,
+            )
             action.status = ActionState.SUCCEEDED
+
         except Exception as exc:
+            require_transition(
+                action.status,
+                ActionState.FAILED,
+                ACTION_TRANSITIONS,
+            )
             action.status = ActionState.FAILED
+
+            require_transition(
+                intention.status,
+                IntentionState.FAILED,
+                INTENTION_TRANSITIONS,
+            )
             intention.status = IntentionState.FAILED
+
             action.result = {"error": str(exc)}
 
             return RuntimeResult(
@@ -95,8 +113,19 @@ class RuntimeEngine:
         )
 
         if verification.result == VerificationState.VERIFIED:
+            require_transition(
+                intention.status,
+                IntentionState.COMPLETED,
+                INTENTION_TRANSITIONS,
+            )
             intention.status = IntentionState.COMPLETED
+
         else:
+            require_transition(
+                intention.status,
+                IntentionState.FAILED,
+                INTENTION_TRANSITIONS,
+            )
             intention.status = IntentionState.FAILED
 
         return RuntimeResult(
