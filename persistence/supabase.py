@@ -12,6 +12,7 @@ from core.persistence import Persistence
 from core.states import (
     ActionState,
     IntentionState,
+    VerificationState,
 )
 
 
@@ -191,4 +192,36 @@ class SupabasePersistence(Persistence):
             facts=row.get("facts", []),
             source=row.get("source", "runtime"),
             observed_at=observed_at,
+        )
+
+    def get_verification(
+        self,
+        verification_id: str,
+    ) -> Optional[Verification]:
+        response = (
+            self.client
+            .table("verifications")
+            .select("*")
+            .eq("id", verification_id)
+            .limit(1)
+            .execute()
+        )
+
+        if not response.data:
+            return None
+
+        row = response.data[0]
+
+        return Verification(
+            id=row["id"],
+            intention_id=row["intention_id"],
+            claim=row["claim"],
+            evidence=[],
+            result=VerificationState(
+                row.get(
+                    "result",
+                    VerificationState.UNKNOWN.value,
+                )
+            ),
+            reason=row.get("reason", ""),
         )
