@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
 from .states import (
     ActionState,
     IntentionState,
@@ -73,6 +74,7 @@ class Evidence:
 
 @dataclass
 class Verification:
+    id: str
     intention_id: str
     claim: str
     evidence: List[Evidence] = field(default_factory=list)
@@ -120,6 +122,7 @@ class RuntimeResult:
                 for item in self.evidence
             ],
             "verification": None if self.verification is None else {
+                "id": self.verification.id,
                 "claim": self.verification.claim,
                 "result": self.verification.result.value,
                 "reason": self.verification.reason,
