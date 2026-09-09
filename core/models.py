@@ -1,6 +1,11 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from .states import (
+    ActionState,
+    IntentionState,
+    VerificationState,
+)
 
 
 def utc_now() -> datetime:
@@ -20,7 +25,7 @@ class Intention:
     goal: str
     target: Optional[str] = None
     constraints: List[str] = field(default_factory=list)
-    status: str = "DECLARED"
+    status: IntentionState = IntentionState.DECLARED
 
 
 @dataclass
@@ -41,7 +46,7 @@ class Action:
     target: Optional[str] = None
     input: Dict[str, Any] = field(default_factory=dict)
     expected_state: Dict[str, Any] = field(default_factory=dict)
-    status: str = "EXECUTING"
+    status: ActionState = ActionState.PLANNED
     result: Optional[Dict[str, Any]] = None
 
 
@@ -71,7 +76,7 @@ class Verification:
     intention_id: str
     claim: str
     evidence: List[Evidence] = field(default_factory=list)
-    result: str = "UNKNOWN"
+    result: VerificationState = VerificationState.UNKNOWN
     reason: str = ""
 
 
