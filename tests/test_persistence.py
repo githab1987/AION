@@ -73,7 +73,7 @@ def test_save_intention():
         "constraints": [],
         "status": "DECLARED",
     }
-    assert call["options"]["on_conflict"] == "id"
+    assert call["options"] == {}
 
 
 def test_save_evidence():
@@ -93,7 +93,7 @@ def test_save_evidence():
 
     call = client.calls[-1]
 
-    assert call["table"] == "evidence"
+    assert call["table"] == "evidences"
     assert call["operation"] == "upsert"
     assert call["payload"] == {
         "id": "evidence-1",
@@ -103,7 +103,7 @@ def test_save_evidence():
         "source": "test",
         "reliability": 1.0,
     }
-    assert call["options"]["on_conflict"] == "id"
+    assert call["options"] == {}
 
 
 def test_save_verification():
