@@ -342,3 +342,82 @@ def test_get_observation_not_found():
     observation = persistence.get_observation("missing")
 
     assert observation is None
+
+
+def test_get_intention_restores_status():
+    client = FakeSupabaseClient()
+
+    client.rows["intentions"] = [
+        {
+            "id": "intent-state-1",
+            "goal": "restore intention state",
+            "target": "system",
+            "constraints": [],
+            "status": "COMPLETED",
+        }
+    ]
+
+    persistence = SupabasePersistence(client)
+
+    intention = persistence.get_intention("intent-state-1")
+
+    assert intention is not None
+    assert intention.status == IntentionState.COMPLETED
+
+
+def test_get_action_restores_status_and_result():
+    client = FakeSupabaseClient()
+
+    client.rows["actions"] = [
+        {
+            "id": "action-state-1",
+            "intention_id": "intent-state-1",
+            "actor": "test",
+            "capability_id": "test-capability",
+            "target": "system",
+            "input": {"value": 1},
+            "expected_state": {"success": True},
+            "status": "SUCCEEDED",
+            "result": {"success": True},
+        }
+    ]
+
+    persistence = SupabasePersistence(client)
+
+    action = persistence.get_action("action-state-1")
+
+    assert action is not None
+    assert action.status == ActionState.SUCCEEDED
+    assert action.result == {
+        "success": True,
+    }
+
+
+def test_get_observation_restores_observed_at():
+    client = FakeSupabaseClient()
+
+    client.rows["observations"] = [
+        {
+            "id": "observation-state-1",
+            "action_id": "action-state-1",
+            "target": "system",
+            "state": {"success": True},
+            "facts": ["restored"],
+            "source": "test",
+            "observed_at": "2026-09-09T00:00:00+00:00",
+        }
+    ]
+
+    persistence = SupabasePersistence(client)
+
+    observation = persistence.get_observation(
+        "observation-state-1"
+    )
+
+    assert observation is not None
+    assert observation.observed_at == datetime(
+        2026,
+        9,
+        9,
+        tzinfo=timezone.utc,
+    )
