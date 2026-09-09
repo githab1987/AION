@@ -1,11 +1,8 @@
-"""AION Lexer v0.1"""
-
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
 
 
-class TokenType(str, Enum):
+class TokenType(Enum):
     KEYWORD = "KEYWORD"
     IDENTIFIER = "IDENTIFIER"
     STRING = "STRING"
@@ -17,7 +14,7 @@ class TokenType(str, Enum):
     EOF = "EOF"
 
 
-@dataclass(frozen=True)
+@dataclass
 class Token:
     type: TokenType
     value: str
@@ -25,77 +22,184 @@ class Token:
     column: int
 
 
-KEYWORDS = {
-    "kehendak",
-    "intention",
-    "buat",
-    "create",
-    "lakukan",
-    "act",
-    "amati",
-    "observe",
-    "periksa",
-    "verify",
-    "makna",
-    "meaning",
-    "seek",
-    "stop",
-    "replan",
-}
-
-
 class LexerError(Exception):
     pass
 
 
 class Lexer:
+    KEYWORDS = {
+        "kehendak",
+        "intention",
+        "buat",
+        "create",
+        "lakukan",
+        "act",
+        "amati",
+        "observe",
+        "periksa",
+        "verify",
+        "makna",
+        "meaning",
+        "seek",
+        "stop",
+        "replan",
+    }
+
+    OPERATORS = {
+        ":",
+        "<",
+        ">",
+        "=",
+        "!",
+        "+",
+        "-",
+        "*",
+        "/",
+    }
+
     def __init__(self, source: str):
         self.source = source
-        self.tokens: List[Token] = []
+        self.tokens = []
 
-    def tokenize(self) -> List[Token]:
+        # Stack tingkat indentasi.
+        # Level terluar selalu 0.
+        self.indent_stack = [0]
+
+    def tokenize(self):
         lines = self.source.splitlines()
 
-        for line_number, line in enumerate(lines, start=1):
-            self._tokenize_line(line, line_number)
+        for line_number, raw_line in enumerate(lines, start=1):
+            # Baris kosong tidak mengubah indentation.
+            if not raw_line.strip():
+                continue
+
+            # Komentar penuh.
+            if raw_line.lstrip().startswith("#"):
+                continue
+
+            indent = self._count_indent(raw_line)
+
+            # Indentasi bertambah.
+            if indent > self.indent_stack[-1]:
+                self.indent_stack.append(indent)
+
+                self.tokens.append(
+                    Token(
+                        TokenType.INDENT,
+                        str(indent),
+                        line_number,
+                        1,
+                    )
+                )
+
+            # Indentasi berkurang.
+            elif indent < self.indent_stack[-1]:
+                while (
+                    len(self.indent_stack) > 1
+                    and indent < self.indent_stack[-1]
+                ):
+                    self.indent_stack.pop()
+
+                    self.tokens.append(
+                        Token(
+                            TokenType.DEDENT,
+                            str(indent),
+                            line_number,
+                            1,
+                        )
+                    )
+
+                # Indentasi harus kembali ke level yang pernah ada.
+                if indent != self.indent_stack[-1]:
+                    raise LexerError(
+                        f"Invalid indentation at line {line_number}: "
+                        f"{indent} spaces"
+                    )
+
+            self._tokenize_line(
+                raw_line,
+                line_number,
+                indent,
+            )
+
+            self.tokens.append(
+                Token(
+                    TokenType.NEWLINE,
+                    "\\n",
+                    line_number,
+                    len(raw_line) + 1,
+                )
+            )
+
+        # Tutup semua blok yang masih terbuka.
+        final_line = len(lines) + 1
+
+        while len(self.indent_stack) > 1:
+            self.indent_stack.pop()
+
+            self.tokens.append(
+                Token(
+                    TokenType.DEDENT,
+                    "0",
+                    final_line,
+                    1,
+                )
+            )
 
         self.tokens.append(
-            Token(TokenType.EOF, "", len(lines) + 1, 1)
+            Token(
+                TokenType.EOF,
+                "",
+                final_line,
+                1,
+            )
         )
 
         return self.tokens
 
-    def _tokenize_line(self, line: str, line_number: int) -> None:
-        if not line.strip():
-            self.tokens.append(
-                Token(TokenType.NEWLINE, "", line_number, 1)
-            )
-            return
+    def _count_indent(self, line: str) -> int:
+        spaces = 0
 
-        stripped = line.lstrip()
-        indent = len(line) - len(stripped)
+        for char in line:
+            if char == " ":
+                spaces += 1
+            elif char == "\t":
+                # Untuk kestabilan bahasa, satu TAB dianggap 4 spasi.
+                spaces += 4
+            else:
+                break
 
-        if indent:
-            self.tokens.append(
-                Token(TokenType.INDENT, str(indent), line_number, 1)
-            )
+        return spaces
 
-        i = 0
+    def _tokenize_line(
+        self,
+        line: str,
+        line_number: int,
+        indent: int,
+    ):
+        index = indent
+        length = len(line)
 
-        while i < len(stripped):
-            char = stripped[i]
-            column = i + indent + 1
+        while index < length:
+            char = line[index]
 
+            # Spasi.
             if char.isspace():
-                i += 1
+                index += 1
                 continue
 
+            # Komentar.
             if char == "#":
                 break
 
+            column = index + 1
+
+            # String.
             if char == '"':
-                value, i = self._read_string(
-                    stripped, i, line_number
+                value, index = self._read_string(
+                    line,
+                    index,
+                    line_number,
                 )
 
                 self.tokens.append(
@@ -106,10 +210,12 @@ class Lexer:
                         column,
                     )
                 )
+
                 continue
 
+            # Angka.
             if char.isdigit():
-                value, i = self._read_number(stripped, i)
+                value, index = self._read_number(line, index)
 
                 self.tokens.append(
                     Token(
@@ -119,14 +225,19 @@ class Lexer:
                         column,
                     )
                 )
+
                 continue
 
+            # Identifier / keyword.
             if char.isalpha() or char == "_":
-                value, i = self._read_identifier(stripped, i)
+                value, index = self._read_identifier(
+                    line,
+                    index,
+                )
 
                 token_type = (
                     TokenType.KEYWORD
-                    if value in KEYWORDS
+                    if value in self.KEYWORDS
                     else TokenType.IDENTIFIER
                 )
 
@@ -138,10 +249,23 @@ class Lexer:
                         column,
                     )
                 )
+
                 continue
 
-            if char in "<>=!+-*/:":
-                value, i = self._read_operator(stripped, i)
+            # Operator.
+            if char in self.OPERATORS:
+                value = char
+
+                # Operator dua karakter.
+                if (
+                    index + 1 < length
+                    and line[index:index + 2]
+                    in {"<=", ">=", "==", "!="}
+                ):
+                    value = line[index:index + 2]
+                    index += 2
+                else:
+                    index += 1
 
                 self.tokens.append(
                     Token(
@@ -151,69 +275,79 @@ class Lexer:
                         column,
                     )
                 )
+
                 continue
 
             raise LexerError(
-                f"Unexpected character {char!r} "
+                f"Unexpected character '{char}' "
                 f"at line {line_number}, column {column}"
             )
 
-        self.tokens.append(
-            Token(TokenType.NEWLINE, "", line_number, len(line) + 1)
-        )
+    def _read_string(self, line, index, line_number):
+        index += 1
+        chars = []
 
-    @staticmethod
-    def _read_string(
-        text: str,
-        start: int,
-        line: int,
-    ):
-        i = start + 1
-        value = []
+        while index < len(line):
+            char = line[index]
 
-        while i < len(text):
-            if text[i] == '"':
-                return "".join(value), i + 1
+            if char == '"':
+                return "".join(chars), index + 1
 
-            if text[i] == "\\" and i + 1 < len(text):
-                value.append(text[i + 1])
-                i += 2
+            if char == "\\":
+                if index + 1 >= len(line):
+                    raise LexerError(
+                        f"Unterminated escape sequence "
+                        f"at line {line_number}"
+                    )
+
+                next_char = line[index + 1]
+
+                escapes = {
+                    "n": "\n",
+                    "t": "\t",
+                    '"': '"',
+                    "\\": "\\",
+                }
+
+                chars.append(
+                    escapes.get(next_char, next_char)
+                )
+
+                index += 2
                 continue
 
-            value.append(text[i])
-            i += 1
+            chars.append(char)
+            index += 1
 
         raise LexerError(
-            f"Unterminated string at line {line}"
+            f"Unterminated string at line {line_number}"
         )
 
-    @staticmethod
-    def _read_number(text: str, start: int):
-        i = start
+    def _read_number(self, line, index):
+        start = index
 
-        while i < len(text) and (
-            text[i].isdigit() or text[i] == "."
-        ):
-            i += 1
+        while index < len(line):
+            char = line[index]
 
-        return text[start:i], i
+            if not char.isdigit() and char != ".":
+                break
 
-    @staticmethod
-    def _read_identifier(text: str, start: int):
-        i = start
+            index += 1
 
-        while i < len(text) and (
-            text[i].isalnum() or text[i] == "_"
-        ):
-            i += 1
+        return line[start:index], index
 
-        return text[start:i], i
+    def _read_identifier(self, line, index):
+        start = index
 
-    @staticmethod
-    def _read_operator(text: str, start: int):
-        two = text[start:start + 2]
+        while index < len(line):
+            char = line[index]
 
-        if two in {"<=", ">=", "==", "!="}:
-            return two, start + 2
+            if not (
+                char.isalnum()
+                or char == "_"
+            ):
+                break
 
-        return text[start], start + 1
+            index += 1
+
+        return line[start:index], index
