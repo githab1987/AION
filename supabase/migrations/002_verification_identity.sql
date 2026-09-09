@@ -1,4 +1,7 @@
 alter table verifications
+    alter column id drop identity if exists;
+
+alter table verifications
     alter column id drop default;
 
 alter table verifications
