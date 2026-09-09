@@ -208,6 +208,7 @@ def test_save_verification():
     persistence = SupabasePersistence(client)
 
     verification = Verification(
+        id="verification-1",
         intention_id="intent-1",
         claim="action succeeded",
         result=VerificationState.VERIFIED,
@@ -219,8 +220,9 @@ def test_save_verification():
     call = client.calls[-1]
 
     assert call["table"] == "verifications"
-    assert call["operation"] == "insert"
+    assert call["operation"] == "upsert"
     assert call["payload"] == {
+        "id": "verification-1",
         "intention_id": "intent-1",
         "claim": "action succeeded",
         "result": "VERIFIED",
