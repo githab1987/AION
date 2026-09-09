@@ -35,15 +35,24 @@ class Persistence(ABC):
         pass
 
     @abstractmethod
-    def save_verification(self, verification: Verification) -> None:
+    def save_verification(
+        self,
+        verification: Verification,
+    ) -> None:
         pass
 
     @abstractmethod
-    def get_intention(self, intention_id: str) -> Optional[Intention]:
+    def get_intention(
+        self,
+        intention_id: str,
+    ) -> Optional[Intention]:
         pass
 
     @abstractmethod
-    def get_action(self, action_id: str) -> Optional[Action]:
+    def get_action(
+        self,
+        action_id: str,
+    ) -> Optional[Action]:
         pass
 
     @abstractmethod
@@ -51,4 +60,11 @@ class Persistence(ABC):
         self,
         observation_id: str,
     ) -> Optional[Observation]:
+        pass
+
+    @abstractmethod
+    def get_verification(
+        self,
+        verification_id: str,
+    ) -> Optional[Verification]:
         pass
