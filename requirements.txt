@@ -1,3 +1,0 @@
-fastapi>=0.141.1,<1
-httpx2
-supabase>=2.0,<3
