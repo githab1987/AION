@@ -1,2022 +1,2042 @@
-/* =========================================================
+/* ============================================================
    SPECIAL ALI
-   Frontend Application Layer
-   =========================================================
+   Financial Control Operating System
 
-   IMPORTANT:
+   Frontend responsibilities:
+   - UI
+   - navigation
+   - Supabase Auth session
+   - file selection
+   - API invocation
+   - rendering authoritative backend state
 
-   This frontend is NOT the authoritative engine.
-
-   Authoritative state must eventually come from:
-
-   UI
-      ↓
-   API
-      ↓
-   Command Gateway
-      ↓
-   Orchestrator
-      ↓
-   Core Execution Bus
-      ↓
-   Core Engines
-      ↓
-   Validation
-      ↓
-   Proof
-      ↓
-   Human Gate
-      ↓
-   Audit
-
-   The demo state below exists only to make the UI navigable
-   before the backend is connected.
-   ========================================================= */
+   Backend responsibilities:
+   - authoritative state
+   - database mutation
+   - validation
+   - evidence
+   - OCR/extraction
+   - accounting
+   - tax
+   - dependencies
+   - proof
+   - audit
+   - authorization
+============================================================ */
 
 
-/* =========================================================
-   SUPABASE CONFIGURATION
-   ========================================================= */
+/* ============================================================
+   CONFIGURATION
+============================================================ */
 
-const SUPABASE_URL = "";
-const SUPABASE_ANON_KEY = "";
+const CONFIG = {
+  SUPABASE_URL:
+    window.SPECIAL_ALI_SUPABASE_URL ||
+    "YOUR_SUPABASE_URL",
 
-let supabaseClient = null;
+  SUPABASE_ANON_KEY:
+    window.SPECIAL_ALI_SUPABASE_ANON_KEY ||
+    "YOUR_SUPABASE_ANON_KEY",
 
-if (
-  SUPABASE_URL &&
-  SUPABASE_ANON_KEY &&
-  window.supabase
-) {
-  supabaseClient = window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY
-  );
-}
+  API_BASE:
+    window.SPECIAL_ALI_API_BASE ||
+    "/api/v1",
 
-
-/* =========================================================
-   APPLICATION STATE
-   ========================================================= */
-
-const state = {
-  route: "command",
-
-  previousRoute: "command",
-
-  authMode: "signin",
-
-  authenticated: false,
-
-  user: {
-    id: null,
-    name: "User",
-    email: ""
-  },
-
-  workspace: {
-    id: null,
-    name: "My Workspace",
-    status: "EMPTY"
-  },
-
-  data: {
-    files: [],
-    processing: false,
-    processed: false
-  },
-
-  ui: {
-    sidebarOpen: false
-  }
+  STORAGE_BUCKET:
+    "evidence"
 };
 
 
-/* =========================================================
-   ROUTE DEFINITIONS
-   ========================================================= */
+/* ============================================================
+   SUPABASE
+============================================================ */
 
-const routes = {
+let supabaseClient = null;
 
-  command: {
-    title: "ALI Personal Command Center",
-    eyebrow: "ALI",
-    description:
-      "Your financial control workspace."
-  },
+function initSupabase() {
+  if (
+    !window.supabase ||
+    !CONFIG.SUPABASE_URL ||
+    CONFIG.SUPABASE_URL === "YOUR_SUPABASE_URL" ||
+    !CONFIG.SUPABASE_ANON_KEY ||
+    CONFIG.SUPABASE_ANON_KEY === "YOUR_SUPABASE_ANON_KEY"
+  ) {
+    return false;
+  }
 
-  work: {
-    title: "Work",
-    eyebrow: "WORK",
-    description:
-      "Investigations, reconciliations, findings, exceptions and unresolved cases."
-  },
+  supabaseClient = window.supabase.createClient(
+    CONFIG.SUPABASE_URL,
+    CONFIG.SUPABASE_ANON_KEY,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    }
+  );
 
-  investigation: {
-    title: "Investigation",
-    eyebrow: "WORK",
-    description:
-      "Investigate observations, hypotheses, evidence and conclusions."
-  },
+  return true;
+}
 
-  reconciliation: {
-    title: "Reconciliation",
-    eyebrow: "WORK",
-    description:
-      "Compare financial records and control differences without silently upgrading uncertainty."
-  },
 
-  findings: {
-    title: "Findings",
-    eyebrow: "WORK",
-    description:
-      "Control findings and their evidence-backed lifecycle."
-  },
+/* ============================================================
+   APPLICATION STATE
 
-  exceptions: {
-    title: "Exceptions",
-    eyebrow: "WORK",
-    description:
-      "Items requiring review, repair, clarification or authorization."
-  },
+   UI state is NOT authoritative state.
+============================================================ */
 
-  unresolved: {
-    title: "Unresolved",
-    eyebrow: "WORK",
-    description:
-      "Cases that cannot yet be considered resolved."
+const state = {
+
+  session: null,
+  user: null,
+  profile: null,
+  workspace: null,
+
+  route: "ali",
+
+  sidebarCollapsed:
+    localStorage.getItem("special_ali_sidebar") === "collapsed",
+
+  mobileNavOpen: false,
+
+  aliVisible: false,
+
+  aliOpenCount: 0,
+
+  aliLastContext: null,
+
+  processing: false,
+
+  uploadFiles: [],
+
+  pendingConfirmation: null,
+
+  backendConfigured: false
+};
+
+
+/* ============================================================
+   ROUTES
+============================================================ */
+
+const ROUTES = {
+
+  ali: {
+    title: "ALI Command Center",
+    section: "ALI"
   },
 
   tasks: {
     title: "Tasks",
-    eyebrow: "ALI",
-    description:
-      "Work assigned, proposed or waiting for execution."
+    section: "ALI"
   },
 
-  action: {
+  "action-center": {
     title: "Action Center",
-    eyebrow: "ALI",
-    description:
-      "The things currently requiring attention."
+    section: "ALI"
   },
 
   activity: {
     title: "Activity",
-    eyebrow: "ALI",
-    description:
-      "Recent activity across your workspace."
+    section: "ALI"
   },
 
-  accounting: {
+  work: {
+    title: "Work",
+    section: "WORK"
+  },
+
+  investigation: {
+    title: "Investigation",
+    section: "WORK",
+    parent: "work"
+  },
+
+  reconciliation: {
+    title: "Reconciliation",
+    section: "WORK",
+    parent: "work"
+  },
+
+  findings: {
+    title: "Findings",
+    section: "WORK",
+    parent: "work"
+  },
+
+  exceptions: {
+    title: "Exceptions",
+    section: "WORK",
+    parent: "work"
+  },
+
+  unresolved: {
+    title: "Unresolved",
+    section: "WORK",
+    parent: "work"
+  },
+
+  "accounting-overview": {
     title: "Accounting Overview",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Financial accounting control overview."
+    section: "ACCOUNTING"
   },
 
   transactions: {
     title: "Transactions",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Validated financial transactions."
+    section: "ACCOUNTING"
   },
 
   journal: {
     title: "Journal",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Journal entries and controlled posting proposals."
+    section: "ACCOUNTING"
   },
 
   ledger: {
     title: "Ledger",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Ledger activity and account movement."
+    section: "ACCOUNTING"
   },
 
   accounts: {
     title: "Accounts",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Chart of accounts and accounting structure."
+    section: "ACCOUNTING"
   },
 
   receivables: {
     title: "Receivables",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Accounts receivable control."
+    section: "ACCOUNTING"
   },
 
   payables: {
     title: "Payables",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Accounts payable control."
+    section: "ACCOUNTING"
   },
 
   inventory: {
     title: "Inventory",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Inventory movements and supporting evidence."
+    section: "ACCOUNTING"
   },
 
   "fixed-assets": {
     title: "Fixed Assets",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Fixed asset records, movements and depreciation."
+    section: "ACCOUNTING"
   },
 
   adjustments: {
     title: "Adjustments",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Controlled accounting adjustment proposals."
+    section: "ACCOUNTING"
   },
 
-  close: {
+  "period-close": {
     title: "Period Close",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Living month-end and period-close controls."
+    section: "ACCOUNTING"
   },
 
   "financial-reports": {
     title: "Financial Reports",
-    eyebrow: "ACCOUNTING",
-    description:
-      "Validated financial reporting outputs."
+    section: "ACCOUNTING"
   },
 
-  tax: {
+  "tax-overview": {
     title: "Tax Overview",
-    eyebrow: "TAX",
-    description:
-      "Tax control overview."
+    section: "TAX"
   },
 
   "tax-data": {
     title: "Tax Data",
-    eyebrow: "TAX",
-    description:
-      "Tax-relevant validated source data."
+    section: "TAX"
   },
 
   "tax-calculations": {
     title: "Tax Calculations",
-    eyebrow: "TAX",
-    description:
-      "Rule-driven tax calculations with traceability."
+    section: "TAX"
   },
 
   "tax-reconciliation": {
     title: "Tax Reconciliation",
-    eyebrow: "TAX",
-    description:
-      "Tax reconciliation and differences."
+    section: "TAX"
   },
 
   "tax-rules": {
     title: "Tax Rules",
-    eyebrow: "TAX",
-    description:
-      "Registered and versioned tax rules."
+    section: "TAX"
   },
 
   "tax-issues": {
     title: "Tax Issues",
-    eyebrow: "TAX",
-    description:
-      "Tax cases requiring attention."
+    section: "TAX"
   },
 
   "tax-reports": {
     title: "Tax Reports / Export",
-    eyebrow: "TAX",
-    description:
-      "Tax working papers, reports and structured exports."
+    section: "TAX"
   },
 
-  data: {
+  "data-overview": {
     title: "Data Center",
-    eyebrow: "DATA CENTER",
-    description:
-      "Sources, documents, ingestion, extraction and validation."
+    section: "DATA CENTER"
   },
 
   sources: {
     title: "Sources",
-    eyebrow: "DATA CENTER",
-    description:
-      "Registered data sources and provenance."
+    section: "DATA CENTER"
   },
 
   documents: {
     title: "Documents",
-    eyebrow: "DATA CENTER",
-    description:
-      "Uploaded and registered documents."
+    section: "DATA CENTER"
   },
 
-  upload: {
-    title: "Upload Data",
-    eyebrow: "DATA CENTER",
-    description:
-      "Upload files directly from your computer or device."
+  ingestion: {
+    title: "Data Ingestion",
+    section: "DATA CENTER"
   },
 
   ocr: {
     title: "OCR / Extraction",
-    eyebrow: "DATA CENTER",
-    description:
-      "Extraction status for documents and scanned data."
+    section: "DATA CENTER"
   },
 
-  validation: {
+  "data-validation": {
     title: "Data Validation",
-    eyebrow: "DATA CENTER",
-    description:
-      "Validate extracted data before it enters controlled processing."
+    section: "DATA CENTER"
+  },
+
+  "data-health": {
+    title: "Data Health",
+    section: "DATA CENTER"
   },
 
   duplicates: {
     title: "Duplicates",
-    eyebrow: "DATA CENTER",
-    description:
-      "Duplicate detection and review."
+    section: "DATA CENTER"
   },
 
-  evidence: {
+  "reset-data": {
+    title: "Reset Data",
+    section: "DATA CENTER"
+  },
+
+  "delete-data": {
+    title: "Delete Data",
+    section: "DATA CENTER"
+  },
+
+  "refresh-audit": {
+    title: "Refresh Audit",
+    section: "DATA CENTER"
+  },
+
+  "evidence-registry": {
     title: "Evidence Registry",
-    eyebrow: "EVIDENCE",
-    description:
-      "Registered evidence and provenance."
+    section: "EVIDENCE"
   },
 
   proof: {
     title: "Proof",
-    eyebrow: "EVIDENCE",
-    description:
-      "Proof objects and deterministic result support."
+    section: "EVIDENCE"
   },
 
   conflicts: {
     title: "Conflicts",
-    eyebrow: "EVIDENCE",
-    description:
-      "Conflicting evidence and unresolved contradictions."
+    section: "EVIDENCE"
   },
 
-  approvals: {
+  "pending-approval": {
     title: "Pending Approval",
-    eyebrow: "HUMAN GATE",
-    description:
-      "Actions waiting for authorized human decisions."
+    section: "HUMAN GATE"
   },
 
   decisions: {
     title: "Decisions",
-    eyebrow: "HUMAN GATE",
-    description:
-      "Human decisions affecting controlled workflow."
+    section: "HUMAN GATE"
   },
 
   "decision-history": {
     title: "Decision History",
-    eyebrow: "HUMAN GATE",
-    description:
-      "Historical human gate decisions."
+    section: "HUMAN GATE"
   },
 
   "control-report": {
     title: "Control Report",
-    eyebrow: "REPORTS",
-    description:
-      "Financial control reporting."
+    section: "REPORTS"
   },
 
   "accounting-report": {
     title: "Accounting Report",
-    eyebrow: "REPORTS",
-    description:
-      "Accounting reporting outputs."
+    section: "REPORTS"
   },
 
   "tax-report": {
     title: "Tax Report",
-    eyebrow: "REPORTS",
-    description:
-      "Tax reporting outputs."
+    section: "REPORTS"
   },
 
   "audit-report": {
     title: "Audit Report",
-    eyebrow: "REPORTS",
-    description:
-      "Audit-ready control reporting."
+    section: "REPORTS"
   },
 
   "execution-log": {
     title: "Execution Log",
-    eyebrow: "AUDIT",
-    description:
-      "Execution lifecycle and execution steps."
+    section: "AUDIT"
   },
 
   "event-log": {
     title: "Event Log",
-    eyebrow: "AUDIT",
-    description:
-      "Immutable application events."
+    section: "AUDIT"
   },
 
   "audit-trail": {
     title: "Audit Trail",
-    eyebrow: "AUDIT",
-    description:
-      "End-to-end trace of controlled activity."
+    section: "AUDIT"
   },
 
   account: {
     title: "Account",
-    eyebrow: "SETTINGS",
-    description:
-      "Identity, authentication and account information."
+    section: "SETTINGS"
   },
 
-  "workspace-settings": {
+  workspace: {
     title: "Workspace",
-    eyebrow: "SETTINGS",
-    description:
-      "Workspace configuration."
+    section: "SETTINGS"
   },
 
   members: {
     title: "Members & Roles",
-    eyebrow: "SETTINGS",
-    description:
-      "Workspace members, roles and permissions."
+    section: "SETTINGS"
+  },
+
+  permissions: {
+    title: "Permissions",
+    section: "SETTINGS"
+  },
+
+  "accounting-settings": {
+    title: "Accounting Settings",
+    section: "SETTINGS"
+  },
+
+  "tax-settings": {
+    title: "Tax Settings",
+    section: "SETTINGS"
   },
 
   integrations: {
     title: "Integrations",
-    eyebrow: "SETTINGS",
-    description:
-      "Optional authorized external sources."
+    section: "SETTINGS"
   },
 
   preferences: {
     title: "Preferences",
-    eyebrow: "SETTINGS",
-    description:
-      "Language, timezone, notifications and ALI communication."
+    section: "SETTINGS"
   }
 };
 
 
-/* =========================================================
-   INITIALIZATION
-   ========================================================= */
+/* ============================================================
+   ALI LANGUAGE
+============================================================ */
+
+const ALI_MESSAGES = {
+
+  commandCenter: [
+    "Saya siap. Kita mulai dari apa yang benar-benar ada di workspace ini.",
+    "Workspace siap. Beri saya datanya, lalu kita lihat apa yang sebenarnya terjadi.",
+    "Saya di sini. Tidak perlu merapikan semuanya dulu. Kita bisa mulai dari data yang ada.",
+    "Mari kita mulai. Saya akan membedakan apa yang terbukti, apa yang perlu diperiksa, dan apa yang belum bisa disimpulkan."
+  ],
+
+  openAgain: [
+    "Saya kembali. Kita lanjut dari konteks terakhir.",
+    "Saya di sini lagi. Mari kita lihat apa yang membutuhkan perhatian sekarang.",
+    "Baik. Saya kembali ke workspace. Tidak ada yang saya anggap selesai tanpa dasar yang cukup.",
+    "Kita lanjut. Saya akan menjaga konteks pekerjaan ini tetap terhubung dengan buktinya."
+  ],
+
+  upload: [
+    "Saya menerima file-nya. Saya akan memeriksa isinya sebelum menggunakannya.",
+    "Data masuk. Saya akan ekstrak, validasi, cari duplikasi, lalu daftarkan evidence-nya.",
+    "Saya belum menganggap file ini sebagai data yang benar. Kita periksa dulu."
+  ],
+
+  processing: [
+    "Saya sedang memeriksa struktur data. Tunggu sampai validasi selesai sebelum menarik kesimpulan.",
+    "Extraction sedang berjalan. Saya akan mempertahankan hubungan antara hasil ekstraksi dan sumber aslinya.",
+    "Saya sedang memeriksa data, bukan sekadar membaca teksnya."
+  ],
+
+  work: [
+    "Di Work, kita fokus pada hal-hal yang membutuhkan pemeriksaan, keputusan, atau penyelesaian.",
+    "Saya akan membantu memprioritaskan pekerjaan berdasarkan kondisi data dan evidence."
+  ],
+
+  findings: [
+    "Finding belum otomatis berarti kesalahan. Kita perlu evidence yang cukup sebelum menyimpulkannya.",
+    "Saya tidak akan menutup finding hanya karena terlihat masuk akal. Resolution harus dapat dibuktikan."
+  ],
+
+  reconciliation: [
+    "Reconciliation dimulai dari kecocokan evidence, bukan dari angka yang ingin kita cocokkan.",
+    "Saya akan membedakan EXACT, PROBABLE, PARTIAL, AMBIGUOUS, NO MATCH dan CONTRADICTED."
+  ],
+
+  unresolved: [
+    "Yang belum terselesaikan tetap terlihat. Saya tidak akan membuat masalah menghilang hanya karena belum ada jawabannya.",
+    "UNRESOLVED tetap menjadi bagian dari kontrol sampai ada resolution yang tervalidasi."
+  ],
+
+  tax: [
+    "Untuk Tax, saya akan memisahkan perlakuan perpajakan dari perlakuan accounting.",
+    "Kalau rule belum established, hasil pajak tidak boleh diperlakukan sebagai final.",
+    "Saya akan menjaga hubungan antara tax result, rule version, evidence dan calculation."
+  ],
+
+  accounting: [
+    "Untuk Accounting, kita bisa mulai dari transaction, journal, reconciliation atau closing.",
+    "Saya akan menjaga trace dari input sampai final accounting result."
+  ]
+};
+
+
+/* ============================================================
+   DOM HELPERS
+============================================================ */
+
+const $ = (selector) =>
+  document.querySelector(selector);
+
+const $$ = (selector) =>
+  Array.from(document.querySelectorAll(selector));
+
+
+/* ============================================================
+   BOOT
+============================================================ */
 
 document.addEventListener("DOMContentLoaded", async () => {
 
-  setupUploadDropzone();
+  state.backendConfigured = initSupabase();
+
+  bindEvents();
+  applySidebarState();
+
+  if (!state.backendConfigured) {
+    setConnection(false, "Backend not configured");
+    showLanding();
+    return;
+  }
 
   await restoreSession();
-
-  showLanding();
 
 });
 
 
-/* =========================================================
-   LANDING / LEARN
-   ========================================================= */
+/* ============================================================
+   EVENTS
+============================================================ */
 
-function showLanding() {
+function bindEvents() {
 
-  document
-    .getElementById("landingPage")
-    .classList.remove("hidden");
+  $("#authForm")?.addEventListener(
+    "submit",
+    handleAuthSubmit
+  );
 
-  document
-    .getElementById("learnPage")
-    .classList.add("hidden");
+  $("#fileInput")?.addEventListener(
+    "change",
+    handleFilesSelected
+  );
 
-  document
-    .getElementById("appPage")
-    .classList.add("hidden");
+  window.addEventListener(
+    "resize",
+    handleResize
+  );
+
 }
 
 
-function showLearnMore() {
+/* ============================================================
+   AUTH SESSION
+============================================================ */
 
-  document
-    .getElementById("landingPage")
-    .classList.add("hidden");
+async function restoreSession() {
 
-  document
-    .getElementById("learnPage")
-    .classList.remove("hidden");
+  try {
 
-  document
-    .getElementById("appPage")
-    .classList.add("hidden");
+    const {
+      data,
+      error
+    } = await supabaseClient.auth.getSession();
 
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+    if (error) {
+      throw error;
+    }
+
+    if (data?.session) {
+      await applyAuthenticatedSession(
+        data.session
+      );
+    } else {
+      showLanding();
+    }
+
+    supabaseClient.auth.onAuthStateChange(
+      async (event, session) => {
+
+        if (session) {
+          await applyAuthenticatedSession(session);
+        } else {
+
+          state.session = null;
+          state.user = null;
+          state.profile = null;
+          state.workspace = null;
+
+          showLanding();
+        }
+
+      }
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    setConnection(
+      false,
+      "Session unavailable"
+    );
+
+    showLanding();
+
+  }
+
 }
 
 
-/* =========================================================
-   AUTH
-   ========================================================= */
+/* ============================================================
+   AUTH APPLY
+============================================================ */
 
-function openAuth(mode = "signin") {
+async function applyAuthenticatedSession(session) {
 
-  state.authMode = mode;
+  state.session = session;
+  state.user = session.user;
 
-  updateAuthModal();
+  setConnection(
+    true,
+    "Connected"
+  );
 
-  document
-    .getElementById("authModal")
-    .classList.remove("hidden");
+  updateUserIdentity();
+
+  /*
+    IMPORTANT:
+
+    Profile/workspace data should come from backend.
+    Never manufacture role/workspace authority in UI.
+  */
+
+  try {
+
+    const result =
+      await apiRequest(
+        "/me",
+        {
+          method: "GET"
+        },
+        false
+      );
+
+    if (result) {
+
+      state.profile =
+        result.profile || null;
+
+      state.workspace =
+        result.workspace || null;
+
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "Profile/workspace API unavailable:",
+      error
+    );
+
+  }
+
+  updateUserIdentity();
+
+  showApp();
+
+  await navigate("ali");
+
+}
+
+
+/* ============================================================
+   AUTH UI
+============================================================ */
+
+let authMode = "signin";
+
+
+function showAuth(mode = "signin") {
+
+  authMode = mode;
+
+  $("#authModal")
+    .classList
+    .remove("hidden");
+
+  $("#authTitle").textContent =
+    mode === "signup"
+      ? "Create your SPECIAL ALI account"
+      : "Welcome back";
+
+  $("#authDescription").textContent =
+    mode === "signup"
+      ? "Create your account and start a controlled workspace."
+      : "Sign in to continue to your workspace.";
+
+  $("#nameField")
+    .classList
+    .toggle(
+      "hidden",
+      mode !== "signup"
+    );
+
+  $("#authSubmit").textContent =
+    mode === "signup"
+      ? "Create Account"
+      : "Sign In";
+
+  $("#authError")
+    .classList
+    .add("hidden");
+
 }
 
 
 function closeAuth() {
 
-  document
-    .getElementById("authModal")
-    .classList.add("hidden");
+  $("#authModal")
+    .classList
+    .add("hidden");
+
 }
 
 
-function toggleAuthMode() {
-
-  state.authMode =
-    state.authMode === "signin"
-      ? "signup"
-      : "signin";
-
-  updateAuthModal();
-}
-
-
-function updateAuthModal() {
-
-  const signup =
-    state.authMode === "signup";
-
-  document.getElementById("authTitle").textContent =
-    signup
-      ? "Create your account"
-      : "Sign in";
-
-  document.getElementById("authSubtitle").textContent =
-    signup
-      ? "Create your workspace and give ALI something to work with."
-      : "Welcome back. Your workspace is waiting.";
-
-  document
-    .getElementById("nameGroup")
-    .classList.toggle("hidden", !signup);
-
-  document.getElementById("authSubmit").textContent =
-    signup
-      ? "Create Account"
-      : "Sign In";
-
-  document.getElementById("authSwitchText").textContent =
-    signup
-      ? "Already have an account?"
-      : "Don't have an account?";
-
-  document.getElementById("authSwitchButton").textContent =
-    signup
-      ? "Sign In"
-      : "Create Account";
-}
-
-
-async function handleAuth(event) {
+async function handleAuthSubmit(event) {
 
   event.preventDefault();
 
-  const email =
-    document.getElementById("authEmail").value.trim();
+  if (!state.backendConfigured) {
 
-  const password =
-    document.getElementById("authPassword").value;
+    showToast(
+      "Supabase belum dikonfigurasi. Isi SUPABASE_URL dan SUPABASE_ANON_KEY terlebih dahulu.",
+      "warning"
+    );
 
-  const name =
-    document.getElementById("authName").value.trim();
-
-  if (!email || !password) {
-    showToast("Email and password are required.");
     return;
   }
 
+  const email =
+    $("#authEmail").value.trim();
 
-  /*
-    Real Supabase authentication.
-  */
+  const password =
+    $("#authPassword").value;
 
-  if (supabaseClient) {
+  const name =
+    $("#authName").value.trim();
 
-    try {
+  const errorBox =
+    $("#authError");
 
-      let result;
+  errorBox.classList.add("hidden");
 
-      if (state.authMode === "signup") {
+  $("#authSubmit").disabled = true;
 
-        result =
-          await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                full_name: name
-              }
+  try {
+
+    let result;
+
+    if (authMode === "signup") {
+
+      result =
+        await supabaseClient.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name
             }
-          });
+          }
+        });
 
-      } else {
+    } else {
 
-        result =
-          await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-          });
+      result =
+        await supabaseClient.auth.signInWithPassword({
+          email,
+          password
+        });
 
-      }
+    }
 
-      if (result.error) {
-        throw result.error;
-      }
+    if (result.error) {
+      throw result.error;
+    }
 
-      state.authenticated = true;
-
-      state.user.email = email;
-
-      state.user.name =
-        name ||
-        result.data.user?.user_metadata?.full_name ||
-        email.split("@")[0];
+    if (
+      authMode === "signup" &&
+      !result.data.session
+    ) {
 
       closeAuth();
 
-      enterApplication();
-
       showToast(
-        state.authMode === "signup"
-          ? "Account created."
-          : "Welcome back."
-      );
-
-      return;
-
-    } catch (error) {
-
-      console.error(error);
-
-      showToast(
-        error.message ||
-        "Authentication failed."
+        "Account dibuat. Silakan verifikasi email jika Supabase mengaktifkan email confirmation.",
+        "success"
       );
 
       return;
     }
+
+    closeAuth();
+
+  } catch (error) {
+
+    console.error(error);
+
+    errorBox.textContent =
+      normalizeError(error);
+
+    errorBox.classList.remove("hidden");
+
+  } finally {
+
+    $("#authSubmit").disabled = false;
+
   }
 
-
-  /*
-    Demo fallback.
-
-    This exists only when Supabase credentials are not configured.
-  */
-
-  state.authenticated = true;
-
-  state.user.email = email;
-
-  state.user.name =
-    name ||
-    email.split("@")[0];
-
-  closeAuth();
-
-  enterApplication();
-
-  showToast(
-    "Demo mode — connect Supabase for real authentication."
-  );
 }
 
 
-async function restoreSession() {
+/* ============================================================
+   LOGOUT
+============================================================ */
+
+async function logout() {
 
   if (!supabaseClient) {
+    showLanding();
     return;
   }
 
   try {
 
     const {
-      data
-    } = await supabaseClient.auth.getSession();
+      error
+    } = await supabaseClient.auth.signOut();
 
-    if (data.session?.user) {
-
-      state.authenticated = true;
-
-      state.user.id =
-        data.session.user.id;
-
-      state.user.email =
-        data.session.user.email || "";
-
-      state.user.name =
-        data.session.user.user_metadata?.full_name ||
-        data.session.user.email?.split("@")[0] ||
-        "User";
+    if (error) {
+      throw error;
     }
+
+    /*
+      Session is intentionally removed only by logout.
+      Closing/reloading the app does NOT call signOut.
+    */
 
   } catch (error) {
 
-    console.error(
-      "Session restore failed:",
-      error
+    console.error(error);
+
+    showToast(
+      normalizeError(error),
+      "error"
     );
+
   }
+
 }
 
 
-/* =========================================================
-   APPLICATION ENTRY
-   ========================================================= */
+/* ============================================================
+   VIEW SWITCHING
+============================================================ */
 
-function enterApplication() {
+function showLanding() {
 
-  document
-    .getElementById("landingPage")
-    .classList.add("hidden");
+  $("#landingView")
+    .classList
+    .remove("hidden");
 
-  document
-    .getElementById("learnPage")
-    .classList.add("hidden");
+  $("#learnView")
+    .classList
+    .add("hidden");
 
-  document
-    .getElementById("appPage")
-    .classList.remove("hidden");
-
-  document.getElementById("userNameTop").textContent =
-    state.user.name || "Account";
-
-  navigate("command");
-}
-
-
-/* =========================================================
-   LOGOUT
-   ========================================================= */
-
-async function logout() {
-
-  if (supabaseClient) {
-
-    try {
-      await supabaseClient.auth.signOut();
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  state.authenticated = false;
-
-  state.user = {
-    id: null,
-    name: "User",
-    email: ""
-  };
-
-  state.workspace = {
-    id: null,
-    name: "My Workspace",
-    status: "EMPTY"
-  };
-
-  state.data = {
-    files: [],
-    processing: false,
-    processed: false
-  };
-
-  showLanding();
-
-  showToast("Signed out.");
-}
-
-
-/* =========================================================
-   NAVIGATION
-   ========================================================= */
-
-function navigate(route) {
-
-  if (!routes[route]) {
-    console.warn("Unknown route:", route);
-    route = "command";
-  }
-
-  state.previousRoute =
-    state.route;
-
-  state.route =
-    route;
+  $("#appView")
+    .classList
+    .add("hidden");
 
   closeMobileSidebar();
+  toggleALI(false);
 
-  renderRoute();
 }
 
 
-function goBackToWork() {
+function showLearnMore() {
 
-  /*
-    IMPORTANT:
-    Findings
-    Reconciliation
-    Unresolved
-    Investigation
-    Exceptions
+  $("#landingView")
+    .classList
+    .add("hidden");
 
-    all return to Work.
+  $("#learnView")
+    .classList
+    .remove("hidden");
 
-    Work itself is the ALI Personal Command Center / Work.
-  */
+  $("#appView")
+    .classList
+    .add("hidden");
 
-  navigate("work");
 }
 
 
-function renderRoute() {
+function showApp() {
 
-  const container =
-    document.getElementById("workspaceContent");
+  $("#landingView")
+    .classList
+    .add("hidden");
 
-  if (!container) return;
+  $("#learnView")
+    .classList
+    .add("hidden");
+
+  $("#appView")
+    .classList
+    .remove("hidden");
+
+  updateUserIdentity();
+
+}
+
+
+/* ============================================================
+   USER IDENTITY
+============================================================ */
+
+function updateUserIdentity() {
+
+  if (!state.user) {
+    return;
+  }
+
+  const fullName =
+    state.profile?.full_name ||
+    state.user.user_metadata?.full_name ||
+    state.user.email?.split("@")[0] ||
+    "User";
+
+  const role =
+    state.profile?.role ||
+    state.workspace?.role ||
+    "Member";
+
+  const initials =
+    getInitials(fullName);
+
+  $("#sidebarUserName").textContent =
+    fullName;
+
+  $("#sidebarUserRole").textContent =
+    role;
+
+  $("#topUserName").textContent =
+    fullName;
+
+  $("#sidebarAvatar").textContent =
+    initials;
+
+  $("#topAvatar").textContent =
+    initials;
+
+}
+
+
+function getInitials(name) {
+
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0])
+    .join("")
+    .toUpperCase();
+
+}
+
+
+/* ============================================================
+   NAVIGATION
+============================================================ */
+
+async function navigate(route) {
+
+  if (!ROUTES[route]) {
+    route = "ali";
+  }
+
+  state.route = route;
 
   updateActiveNavigation();
 
-  switch (state.route) {
+  $("#topbarTitle").textContent =
+    ROUTES[route].title;
 
-    case "command":
-      renderCommandCenter(container);
-      break;
+  closeMobileSidebar();
 
-    case "work":
-      renderWork(container);
-      break;
+  await renderRoute(route);
 
-    case "investigation":
-      renderSimpleWorkPage(
-        container,
-        "Investigation",
-        "Investigate observations, hypotheses, tests and evidence.",
-        "investigation"
-      );
-      break;
+  /*
+    Sidebar is independent from route.
+    Selecting a menu does NOT automatically
+    expand/collapse or lock the sidebar.
+  */
 
-    case "reconciliation":
-      renderReconciliation(container);
-      break;
-
-    case "findings":
-      renderFindings(container);
-      break;
-
-    case "exceptions":
-      renderSimpleWorkPage(
-        container,
-        "Exceptions",
-        "Items requiring review, repair or clarification.",
-        "exceptions"
-      );
-      break;
-
-    case "unresolved":
-      renderUnresolved(container);
-      break;
-
-    case "upload":
-      renderUploadPage(container);
-      break;
-
-    case "ocr":
-      renderOCRPage(container);
-      break;
-
-    case "data":
-      renderDataCenter(container);
-      break;
-
-    default:
-      renderGenericPage(
-        container,
-        state.route
-      );
-  }
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
 }
 
 
 function updateActiveNavigation() {
 
-  document
-    .querySelectorAll(".nav-item")
-    .forEach(item => {
+  $$(".nav-item").forEach(button => {
 
-      item.classList.remove("active");
+    button.classList.toggle(
+      "active",
+      button.dataset.route === state.route
+    );
 
-      if (
-        item.dataset.route === state.route
-      ) {
-        item.classList.add("active");
-      }
-    });
+  });
 
-  /*
-    Work children visually belong to Work.
-  */
-
-  const workRoutes = [
-    "work",
-    "investigation",
-    "reconciliation",
-    "findings",
-    "exceptions",
-    "unresolved"
-  ];
-
-  if (workRoutes.includes(state.route)) {
-
-    const workButton =
-      document.querySelector(
-        '[data-route="work"]'
-      );
-
-    if (workButton) {
-      workButton.classList.add("active");
-    }
-  }
 }
 
 
-/* =========================================================
-   COMMAND CENTER
-   ========================================================= */
+async function renderRoute(route) {
 
-function renderCommandCenter(container) {
+  switch (route) {
+
+    case "ali":
+      renderCommandCenter();
+      break;
+
+    case "work":
+      renderWork();
+      break;
+
+    case "investigation":
+      renderInvestigation();
+      break;
+
+    case "reconciliation":
+      renderReconciliation();
+      break;
+
+    case "findings":
+      renderFindings();
+      break;
+
+    case "exceptions":
+      renderExceptions();
+      break;
+
+    case "unresolved":
+      renderUnresolved();
+      break;
+
+    case "ocr":
+      renderOCR();
+      break;
+
+    case "ingestion":
+      renderIngestion();
+      break;
+
+    case "reset-data":
+      renderResetData();
+      break;
+
+    case "delete-data":
+      renderDeleteData();
+      break;
+
+    case "refresh-audit":
+      renderRefreshAudit();
+      break;
+
+    case "account":
+      renderAccount();
+      break;
+
+    default:
+      renderGenericPage(route);
+      break;
+
+  }
+
+}
+
+
+/* ============================================================
+   COMMAND CENTER
+============================================================ */
+
+async function renderCommandCenter() {
+
+  const firstName =
+    state.profile?.full_name?.split(" ")[0] ||
+    state.user?.user_metadata?.full_name?.split(" ")[0] ||
+    "there";
 
   const greeting =
-    getDynamicGreeting();
+    getTimeGreeting();
 
-  const message =
-    getALIMessage();
+  const hasData =
+    Boolean(
+      state.workspace?.has_data
+    );
 
-  if (
-    state.workspace.status === "EMPTY"
-  ) {
+  $("#content").innerHTML = `
 
-    container.innerHTML = `
+    <div class="command-head">
 
-      <section class="ali-greeting">
+      <div class="eyebrow">
+        ALI PERSONAL COMMAND CENTER
+      </div>
 
-        <div class="eyebrow">
-          ALI PERSONAL COMMAND CENTER
-        </div>
+      <h1 class="page-title">
+        ${hasData
+          ? `Welcome back, ${escapeHTML(firstName)}.`
+          : `Your workspace is ready.`}
+      </h1>
 
-        <h1>
-          ${escapeHTML(greeting)}
-        </h1>
+      <p class="page-description">
+        ${hasData
+          ? "Your financial control workspace is active. Let’s see what needs your attention."
+          : "Your workspace is empty. That’s okay. Give ALI the data first."}
+      </p>
 
-        <div class="ali-message">
-          ${escapeHTML(message)}
-          <span class="typing-cursor"></span>
-        </div>
+      <div class="ali-line" id="commandAliLine"></div>
 
-      </section>
+    </div>
 
 
-      <section class="command-card">
+    <div class="command-grid">
+
+      <section class="card upload-card">
 
         <div class="upload-symbol">
           ↑
         </div>
 
-        <h2>
-          Give ALI something to work with.
-        </h2>
+        <div class="eyebrow">
+          DATA INTAKE
+        </div>
 
-        <p>
-          Upload financial documents directly from your
-          computer or device. ALI will extract, classify,
-          validate and register the data before it can be
-          used by the control engine.
-        </p>
+        <div class="card-title">
+          ${hasData
+            ? "Add more data"
+            : "Upload Your Data"}
+        </div>
 
-        <div class="supported-types">
+        <div class="card-copy">
+          Upload files directly from your computer or device.
+          ALI will not treat extracted information as authoritative
+          until extraction, validation, duplicate checks and evidence
+          registration have completed.
+        </div>
+
+        <div class="formats">
           PDF · EXCEL · CSV · IMAGES · DOCUMENTS · JSON · XML
         </div>
 
-        <button
-          class="btn btn-primary"
-          onclick="openFilePicker()"
-        >
-          + Upload Your Data
-        </button>
-
-        <div class="ask-box">
-
-          <input
-            id="commandInput"
-            class="input"
-            placeholder="Or tell ALI what you need..."
-            onkeydown="handleCommandKey(event)"
-          />
+        <div class="upload-actions">
 
           <button
-            class="btn btn-secondary"
-            onclick="askALI()"
+            class="btn btn-green"
+            type="button"
+            onclick="openFilePicker()"
+          >
+            + Upload Data
+          </button>
+
+          <button
+            class="btn btn-soft"
+            type="button"
+            onclick="navigate('ingestion')"
+          >
+            View Ingestion
+          </button>
+
+        </div>
+
+      </section>
+
+
+      <section class="card ask-card">
+
+        <div class="eyebrow">
+          OPERATE WITH ALI
+        </div>
+
+        <div class="card-title">
+          Tell ALI what you need.
+        </div>
+
+        <textarea
+          id="aliInput"
+          placeholder="Example: Periksa invoice pembelian yang belum direkonsiliasi."
+        ></textarea>
+
+        <div style="margin-top:12px">
+
+          <button
+            class="btn btn-primary"
+            type="button"
+            onclick="submitALIRequest()"
           >
             Ask ALI
           </button>
 
         </div>
 
-        <div class="empty-status">
-          No data has been processed yet.
+        <div
+          id="askResponse"
+          class="ask-response"
+        >
+          ALI can reason and propose actions, but authoritative
+          state changes remain controlled by the backend.
         </div>
 
       </section>
-    `;
 
-    revealALIMessage();
-
-    return;
-  }
+    </div>
 
 
-  if (
-    state.workspace.status === "PROCESSING"
-  ) {
+    <div class="state-strip">
 
-    renderProcessingCenter(container);
+      <div class="state-card">
+        <div class="state-value">
+          ${hasData ? "—" : "0"}
+        </div>
+        <div class="state-label">
+          Processed documents
+        </div>
+      </div>
 
-    return;
-  }
+      <div class="state-card">
+        <div class="state-value">
+          ${hasData ? "—" : "0"}
+        </div>
+        <div class="state-label">
+          Transactions
+        </div>
+      </div>
 
+      <div class="state-card">
+        <div class="state-value">
+          ${hasData ? "—" : "0"}
+        </div>
+        <div class="state-label">
+          Unresolved
+        </div>
+      </div>
 
-  if (
-    state.workspace.status === "READY"
-  ) {
+      <div class="state-card">
+        <div class="state-value">
+          ${hasData ? "—" : "Ready"}
+        </div>
+        <div class="state-label">
+          Control state
+        </div>
+      </div>
 
-    renderActiveCommandCenter(container);
+    </div>
 
-    return;
-  }
+  `;
+
+  typeALI(
+    `${greeting} ${escapeHTML(firstName)}. ${
+      hasData
+        ? "Workspace ini sudah memiliki data. Saya siap membantu memeriksanya."
+        : "Workspace ini masih kosong. Kita bisa mulai dari data yang Anda punya."
+    }`,
+    "COMMAND_CENTER"
+  );
+
 }
 
 
-/* =========================================================
-   DYNAMIC ALI LANGUAGE
-   ========================================================= */
+/* ============================================================
+   TIME AWARE GREETING
+============================================================ */
 
-function getDynamicGreeting() {
+function getTimeGreeting() {
 
   const hour =
     new Date().getHours();
 
-  const name =
-    state.user.name &&
-    state.user.name !== "User"
-      ? `, ${state.user.name}`
-      : "";
-
   if (hour < 11) {
-    return `Good morning${name}.`;
+    return "Good morning.";
   }
 
   if (hour < 17) {
-    return `Good afternoon${name}.`;
+    return "Good afternoon.";
   }
 
-  return `Good evening${name}.`;
+  return "Good evening.";
+
 }
 
 
-function getALIMessage() {
+/* ============================================================
+   ALI TOGGLE
+============================================================ */
+
+function toggleALI(force) {
+
+  const shouldOpen =
+    typeof force === "boolean"
+      ? force
+      : !state.aliVisible;
+
+  state.aliVisible =
+    shouldOpen;
+
+  const panel =
+    $("#aliPanel");
+
+  if (shouldOpen) {
+
+    state.aliOpenCount++;
+
+    panel.classList.remove(
+      "hidden"
+    );
+
+    const message =
+      getContextualALIMessage();
+
+    typeALI(
+      message,
+      state.route.toUpperCase()
+    );
+
+  } else {
+
+    panel.classList.add(
+      "hidden"
+    );
+
+    /*
+      The next opening gets a different message.
+      ALI does not repeat the same greeting mechanically.
+    */
+
+    state.aliLastContext =
+      `HIDDEN_AFTER_${state.route}`;
+
+  }
+
+}
+
+
+function getContextualALIMessage() {
+
+  const route =
+    state.route;
 
   if (
-    state.workspace.status === "EMPTY"
+    state.aliOpenCount > 1 &&
+    state.aliLastContext === route
   ) {
-    return (
-      "Your workspace is ready. " +
-      "Upload your data and I’ll start by checking what it contains."
+    return randomFrom(
+      ALI_MESSAGES.openAgain
+    );
+  }
+
+  state.aliLastContext =
+    route;
+
+  if (
+    route === "findings"
+  ) {
+    return randomFrom(
+      ALI_MESSAGES.findings
     );
   }
 
   if (
-    state.workspace.status === "PROCESSING"
+    route === "reconciliation"
   ) {
-    return (
-      "I’ve received your files. " +
-      "I’m checking what they contain before using them."
+    return randomFrom(
+      ALI_MESSAGES.reconciliation
     );
   }
 
-  return (
-    "Your workspace is active. " +
-    "Let’s see what needs your attention."
+  if (
+    route === "unresolved"
+  ) {
+    return randomFrom(
+      ALI_MESSAGES.unresolved
+    );
+  }
+
+  if (
+    route.startsWith("tax-")
+  ) {
+    return randomFrom(
+      ALI_MESSAGES.tax
+    );
+  }
+
+  if (
+    route === "transactions" ||
+    route === "journal" ||
+    route === "ledger" ||
+    route === "accounts" ||
+    route.startsWith("accounting")
+  ) {
+    return randomFrom(
+      ALI_MESSAGES.accounting
+    );
+  }
+
+  if (
+    route === "work" ||
+    ROUTES[route]?.parent === "work"
+  ) {
+    return randomFrom(
+      ALI_MESSAGES.work
+    );
+  }
+
+  return randomFrom(
+    ALI_MESSAGES.commandCenter
   );
+
 }
 
 
-function revealALIMessage() {
+/* ============================================================
+   ALI TYPE / REVEAL
+============================================================ */
 
-  /*
-    Lightweight reveal effect.
-    The real ALI conversation layer can later replace this.
-  */
+let aliTypingTimer = null;
 
-  const messageElement =
-    document.querySelector(".ali-message");
 
-  if (!messageElement) return;
+function typeALI(
+  message,
+  context = ""
+) {
 
-  const original =
-    messageElement.textContent.trim();
+  clearInterval(
+    aliTypingTimer
+  );
 
-  messageElement.textContent = "";
+  const output =
+    $("#aliMessage");
+
+  const contextOutput =
+    $("#aliContext");
+
+  if (!output) {
+    return;
+  }
+
+  output.textContent = "";
+
+  contextOutput.textContent =
+    `CONTEXT · ${context}`;
 
   let index = 0;
 
-  const cursor =
-    document.createElement("span");
-
-  cursor.className =
-    "typing-cursor";
-
-  const interval =
+  aliTypingTimer =
     setInterval(() => {
 
-      if (index >= original.length) {
-
-        clearInterval(interval);
-
-        messageElement.appendChild(
-          cursor
-        );
-
-        return;
-      }
-
-      messageElement.textContent +=
-        original[index];
+      output.textContent =
+        message.slice(0, index);
 
       index++;
 
+      if (
+        index > message.length
+      ) {
+
+        clearInterval(
+          aliTypingTimer
+        );
+
+      }
+
     }, 14);
+
 }
 
 
-/* =========================================================
-   ACTIVE COMMAND CENTER
-   ========================================================= */
+/* ============================================================
+   ASK ALI
+============================================================ */
 
-function renderActiveCommandCenter(container) {
+async function submitALIRequest() {
 
-  container.innerHTML = `
+  const input =
+    $("#aliInput");
 
-    <section class="ali-greeting">
+  const response =
+    $("#askResponse");
+
+  if (!input) {
+    return;
+  }
+
+  const message =
+    input.value.trim();
+
+  if (!message) {
+
+    showToast(
+      "Tulis dulu apa yang ingin Anda kerjakan.",
+      "warning"
+    );
+
+    return;
+  }
+
+  toggleALI(true);
+
+  response.textContent =
+    "ALI is checking the request...";
+
+  /*
+    No fake response.
+
+    If API exists:
+      request goes to orchestration layer.
+
+    If API does not exist:
+      explicitly tell user that backend is not connected.
+  */
+
+  try {
+
+    const result =
+      await apiRequest(
+        "/agent/messages",
+        {
+          method: "POST",
+          body: {
+            message,
+            workspace_id:
+              state.workspace?.id || null
+          }
+        }
+      );
+
+    response.textContent =
+      result?.message ||
+      "Request accepted by ALI.";
+
+    typeALI(
+      result?.message ||
+      "Request diterima. Saya akan memprosesnya melalui execution layer.",
+      "AGENT_REQUEST"
+    );
+
+  } catch (error) {
+
+    response.textContent =
+      "ALI belum dapat menjalankan request ini karena execution backend belum tersedia.";
+
+    typeALI(
+      "Saya belum akan berpura-pura sudah mengerjakannya. Execution backend belum mengembalikan hasil.",
+      "BACKEND_BOUNDARY"
+    );
+
+    showToast(
+      normalizeError(error),
+      "warning"
+    );
+
+  }
+
+}
+
+
+/* ============================================================
+   FILE UPLOAD
+============================================================ */
+
+function openFilePicker() {
+
+  $("#fileInput").click();
+
+}
+
+
+async function handleFilesSelected(event) {
+
+  const files =
+    Array.from(
+      event.target.files || []
+    );
+
+  if (!files.length) {
+    return;
+  }
+
+  state.uploadFiles =
+    files;
+
+  typeALI(
+    randomFrom(
+      ALI_MESSAGES.upload
+    ),
+    "DATA_INTAKE"
+  );
+
+  await processUploadSelection(
+    files
+  );
+
+}
+
+
+async function processUploadSelection(files) {
+
+  renderProcessingPage(
+    files
+  );
+
+  try {
+
+    /*
+      Upload path:
+
+      browser
+        ↓
+      backend signed upload / storage
+        ↓
+      SHA-256
+        ↓
+      source registry
+        ↓
+      extraction/OCR
+        ↓
+      classification
+        ↓
+      validation
+        ↓
+      duplicate detection
+        ↓
+      evidence registration
+        ↓
+      READY
+    */
+
+    const result =
+      await apiRequest(
+        "/ingestion/jobs",
+        {
+          method: "POST",
+          body: {
+            workspace_id:
+              state.workspace?.id || null,
+
+            files:
+              files.map(file => ({
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                last_modified:
+                  file.lastModified
+              }))
+          }
+        }
+      );
+
+    if (!result) {
+      throw new Error(
+        "No ingestion job returned."
+      );
+    }
+
+    /*
+      Real implementation should return
+      upload instructions or signed URLs.
+    */
+
+    if (
+      result.upload_urls
+    ) {
+
+      await uploadFilesToSignedUrls(
+        files,
+        result.upload_urls
+      );
+
+    }
+
+    if (
+      result.execution_id
+    ) {
+
+      await monitorExecution(
+        result.execution_id
+      );
+
+    }
+
+    state.workspace = {
+      ...(state.workspace || {}),
+      has_data: true
+    };
+
+    await navigate("ingestion");
+
+  } catch (error) {
+
+    console.error(error);
+
+    renderProcessingError(
+      error
+    );
+
+  }
+
+}
+
+
+/* ============================================================
+   SIGNED UPLOAD
+============================================================ */
+
+async function uploadFilesToSignedUrls(
+  files,
+  uploadUrls
+) {
+
+  for (
+    let i = 0;
+    i < files.length;
+    i++
+  ) {
+
+    const file =
+      files[i];
+
+    const target =
+      uploadUrls[i];
+
+    if (!target) {
+      throw new Error(
+        `No upload target for ${file.name}`
+      );
+    }
+
+    /*
+      Signed URL upload.
+      Backend controls path and authorization.
+    */
+
+    const response =
+      await fetch(
+        target.url,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type":
+              file.type ||
+              "application/octet-stream"
+          },
+          body: file
+        }
+      );
+
+    if (!response.ok) {
+
+      throw new Error(
+        `Upload failed for ${file.name}`
+      );
+
+    }
+
+  }
+
+}
+
+
+/* ============================================================
+   PROCESSING PAGE
+============================================================ */
+
+function renderProcessingPage(files) {
+
+  $("#content").innerHTML = `
+
+    <div class="command-head">
 
       <div class="eyebrow">
-        ALI PERSONAL COMMAND CENTER
+        DATA INGESTION
       </div>
 
-      <h1>
-        Your workspace is active.
+      <h1 class="page-title">
+        Checking your data.
       </h1>
 
-      <div class="ali-message">
-        I’ve checked the incoming data.
-        Here’s what currently needs your attention.
+      <p class="page-description">
+        ALI will not use extracted information as authoritative
+        until the ingestion pipeline has completed its checks.
+      </p>
+
+      <div class="ali-line">
+        Extraction · OCR · Classification · Validation · Duplicate Detection · Evidence
+      </div>
+
+    </div>
+
+    <section class="card processing-card">
+
+      ${files.map((file, index) => `
+
+        <div class="processing-row">
+
+          <div>
+
+            <div style="font-size:13px;font-weight:600">
+              ${escapeHTML(file.name)}
+            </div>
+
+            <div
+              id="processing-${index}"
+              class="progress"
+            >
+              <span></span>
+            </div>
+
+          </div>
+
+          <div
+            id="status-${index}"
+            class="status"
+          >
+            Waiting
+          </div>
+
+        </div>
+
+      `).join("")}
+
+    </section>
+  `;
+
+  /*
+    This is only visual waiting state.
+    It does not claim backend completion.
+  */
+
+}
+
+
+/* ============================================================
+   MONITOR EXECUTION
+============================================================ */
+
+async function monitorExecution(
+  executionId
+) {
+
+  let finished = false;
+
+  while (!finished) {
+
+    const result =
+      await apiRequest(
+        `/agent/executions/${encodeURIComponent(executionId)}`,
+        {
+          method: "GET"
+        }
+      );
+
+    if (!result) {
+      break;
+    }
+
+    const execution =
+      result.execution ||
+      result;
+
+    const status =
+      execution.status;
+
+    updateExecutionUI(
+      execution
+    );
+
+    finished =
+      [
+        "COMPLETED",
+        "FAILED",
+        "STOPPED",
+        "BLOCKED"
+      ].includes(status);
+
+    if (!finished) {
+
+      await sleep(1200);
+
+    }
+
+  }
+
+}
+
+
+function updateExecutionUI(
+  execution
+) {
+
+  /*
+    Backend execution can expose
+    execution_steps.
+
+    The frontend simply renders
+    those authoritative states.
+  */
+
+  const steps =
+    execution.steps ||
+    [];
+
+  steps.forEach(
+    (step, index) => {
+
+      const bar =
+        document.querySelector(
+          `#processing-${index} span`
+        );
+
+      const status =
+        document.querySelector(
+          `#status-${index}`
+        );
+
+      if (!bar || !status) {
+        return;
+      }
+
+      const progress =
+        Number(
+          step.progress || 0
+        );
+
+      bar.style.width =
+        `${Math.max(0, Math.min(100, progress))}%`;
+
+      status.textContent =
+        step.status ||
+        "Processing";
+
+      status.className =
+        `status ${
+          step.status === "COMPLETED"
+            ? "ready"
+            : step.status === "BLOCKED"
+              ? "blocked"
+              : step.status === "WARNING"
+                ? "warning"
+                : ""
+        }`;
+
+    }
+  );
+
+}
+
+
+/* ============================================================
+   INGESTION PAGE
+============================================================ */
+
+function renderIngestion() {
+
+  $("#content").innerHTML = `
+
+    ${backButton("Data Center", "data-overview")}
+
+    <div class="command-head">
+
+      <div class="eyebrow">
+        DATA CENTER / INGESTION
+      </div>
+
+      <h1 class="page-title">
+        Data Ingestion
+      </h1>
+
+      <p class="page-description">
+        Upload local files, monitor extraction, OCR, validation,
+        duplicate checks and evidence registration.
+      </p>
+
+    </div>
+
+    <section class="card page-card">
+
+      <div class="card-title">
+        Upload local data
+      </div>
+
+      <div class="card-copy">
+        Files are processed through the controlled ingestion pipeline.
+        The browser does not decide whether data is valid.
+      </div>
+
+      <div class="upload-actions">
+
+        <button
+          class="btn btn-green"
+          onclick="openFilePicker()"
+        >
+          + Upload Data
+        </button>
+
       </div>
 
     </section>
 
-
-    <div class="grid grid-3">
-
-      <div class="card">
-        <div class="card-title">
-          Documents Processed
-        </div>
-
-        <div class="metric">
-          ${state.data.files.length}
-        </div>
-
-        <div class="card-subtitle">
-          Registered through controlled ingestion.
-        </div>
-      </div>
-
-
-      <div class="card">
-
-        <div class="card-title">
-          Data Health
-        </div>
-
-        <div class="metric">
-          —
-        </div>
-
-        <div class="card-subtitle">
-          Backend validation will provide the authoritative result.
-        </div>
-
-      </div>
-
-
-      <div class="card">
-
-        <div class="card-title">
-          Unresolved
-        </div>
-
-        <div class="metric">
-          —
-        </div>
-
-        <div class="card-subtitle">
-          No unsupported zero-value assumption is displayed.
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="card mt-5">
-
-      <div class="card-title">
-        ALI Control Status
-      </div>
-
-      <div class="card-subtitle">
-        The workspace is ready for investigation,
-        reconciliation and controlled accounting/tax processing.
-      </div>
-
-      <div class="flex flex-wrap gap-2 mt-5">
-
-        <span class="status status-valid">
-          DATA AVAILABLE
-        </span>
-
-        <span class="status status-info">
-          PROCESSING READY
-        </span>
-
-        <span class="status status-info">
-          PROOF CONTROLLED
-        </span>
-
-      </div>
-
-    </div>
   `;
+
 }
 
 
-/* =========================================================
-   WORK
-   ========================================================= */
+/* ============================================================
+   OCR PAGE
+============================================================ */
 
-function renderWork(container) {
+function renderOCR() {
 
-  container.innerHTML = `
+  $("#content").innerHTML = `
 
-    <div class="page-header">
+    ${backButton("Data Center", "data-overview")}
+
+    <div class="command-head">
 
       <div class="eyebrow">
-        ALI PERSONAL COMMAND CENTER
-      </div>
-
-      <h1 class="page-title">
-        Work
-      </h1>
-
-      <p class="page-description">
-        This is the operational work surface of SPECIAL ALI.
-        Investigation, reconciliation, findings, exceptions
-        and unresolved cases remain connected to evidence,
-        validation and dependencies.
-      </p>
-
-    </div>
-
-
-    <div class="grid grid-2">
-
-      ${workCard(
-        "⌕",
-        "Investigation",
-        "Observe, hypothesize, test and conclude.",
-        "investigation"
-      )}
-
-      ${workCard(
-        "⇄",
-        "Reconciliation",
-        "Compare records and identify controlled differences.",
-        "reconciliation"
-      )}
-
-      ${workCard(
-        "◇",
-        "Findings",
-        "Track evidence-backed findings.",
-        "findings"
-      )}
-
-      ${workCard(
-        "△",
-        "Exceptions",
-        "Review items requiring attention.",
-        "exceptions"
-      )}
-
-      ${workCard(
-        "?",
-        "Unresolved",
-        "Cases that cannot yet be considered resolved.",
-        "unresolved"
-      )}
-
-    </div>
-  `;
-}
-
-
-function workCard(
-  icon,
-  title,
-  description,
-  route
-) {
-
-  return `
-
-    <button
-      onclick="navigate('${route}')"
-      class="card text-left hover:-translate-y-0.5 transition-all"
-    >
-
-      <div
-        class="text-2xl"
-        style="color:var(--navy)"
-      >
-        ${icon}
-      </div>
-
-      <div class="card-title mt-4">
-        ${title}
-      </div>
-
-      <div class="card-subtitle">
-        ${description}
-      </div>
-
-      <div
-        class="mt-5 text-xs font-semibold"
-        style="color:var(--navy)"
-      >
-        Open →
-      </div>
-
-    </button>
-  `;
-}
-
-
-/* =========================================================
-   WORK CHILD PAGES
-   ========================================================= */
-
-function workBackButton() {
-
-  return `
-    <button
-      class="back-button"
-      onclick="goBackToWork()"
-    >
-      ‹ Work
-    </button>
-  `;
-}
-
-
-function renderSimpleWorkPage(
-  container,
-  title,
-  description,
-  route
-) {
-
-  container.innerHTML = `
-
-    <div class="page-header">
-
-      ${workBackButton()}
-
-      <div class="eyebrow">
-        WORK
-      </div>
-
-      <h1 class="page-title">
-        ${title}
-      </h1>
-
-      <p class="page-description">
-        ${description}
-      </p>
-
-    </div>
-
-
-    <div class="card">
-
-      <div class="card-title">
-        ${title} workspace
-      </div>
-
-      <div class="card-subtitle">
-        The authoritative backend workflow will populate
-        this surface from validated persisted state.
-      </div>
-
-      <div class="mt-5">
-        <span class="status status-info">
-          READY FOR BACKEND
-        </span>
-      </div>
-
-    </div>
-  `;
-}
-
-
-function renderReconciliation(container) {
-
-  container.innerHTML = `
-
-    <div class="page-header">
-
-      ${workBackButton()}
-
-      <div class="eyebrow">
-        WORK
-      </div>
-
-      <h1 class="page-title">
-        Reconciliation
-      </h1>
-
-      <p class="page-description">
-        Reconciliation results are never silently upgraded
-        from probable to confirmed without satisfying
-        the required conditions.
-      </p>
-
-    </div>
-
-
-    <div class="card">
-
-      <div class="card-title">
-        Reconciliation Status
-      </div>
-
-      <div class="card-subtitle">
-        Backend results will expose match status such as
-        EXACT, PROBABLE, PARTIAL, AMBIGUOUS, NO_MATCH
-        or CONTRADICTED.
-      </div>
-
-      <div class="flex flex-wrap gap-2 mt-5">
-
-        <span class="status status-info">
-          EXACT
-        </span>
-
-        <span class="status status-warning">
-          PROBABLE
-        </span>
-
-        <span class="status status-warning">
-          AMBIGUOUS
-        </span>
-
-        <span class="status status-blocked">
-          CONTRADICTED
-        </span>
-
-      </div>
-
-    </div>
-  `;
-}
-
-
-function renderFindings(container) {
-
-  container.innerHTML = `
-
-    <div class="page-header">
-
-      ${workBackButton()}
-
-      <div class="eyebrow">
-        WORK
-      </div>
-
-      <h1 class="page-title">
-        Findings
-      </h1>
-
-      <p class="page-description">
-        Findings remain open until their evidence,
-        validation and dependencies support a controlled
-        conclusion.
-      </p>
-
-    </div>
-
-
-    <div class="card">
-
-      <div class="card-title">
-        Finding Lifecycle
-      </div>
-
-      <div class="card-subtitle">
-        OPEN → INVESTIGATING → BLOCKED / WAITING_USER
-        → RESOLVED / REJECTED / INVALIDATED
-      </div>
-
-      <div class="mt-5">
-
-        <span class="status status-info">
-          NO FINDINGS LOADED
-        </span>
-
-      </div>
-
-    </div>
-  `;
-}
-
-
-function renderUnresolved(container) {
-
-  container.innerHTML = `
-
-    <div class="page-header">
-
-      ${workBackButton()}
-
-      <div class="eyebrow">
-        WORK
-      </div>
-
-      <h1 class="page-title">
-        Unresolved
-      </h1>
-
-      <p class="page-description">
-        Unresolved cases remain visible until their blocking
-        condition is repaired, evidence is established,
-        or an authorized decision resolves the case.
-      </p>
-
-    </div>
-
-
-    <div class="card">
-
-      <div class="card-title">
-        UNRESOLVED REGISTRY
-      </div>
-
-      <div class="card-subtitle">
-        Unresolved cases cannot simply disappear from the system.
-      </div>
-
-      <div class="mt-5">
-        <span class="status status-info">
-          REGISTRY READY
-        </span>
-      </div>
-
-    </div>
-  `;
-}
-
-
-/* =========================================================
-   UPLOAD
-   ========================================================= */
-
-function openFilePicker() {
-
-  document
-    .getElementById("fileInput")
-    .click();
-}
-
-
-function handleFiles(fileList) {
-
-  if (!fileList || !fileList.length) {
-    return;
-  }
-
-  const files =
-    Array.from(fileList);
-
-  const supported =
-    files.filter(isSupportedFile);
-
-  const unsupported =
-    files.filter(
-      file => !isSupportedFile(file)
-    );
-
-
-  if (unsupported.length) {
-
-    showToast(
-      `${unsupported.length} unsupported file(s) skipped.`
-    );
-  }
-
-
-  if (!supported.length) {
-    return;
-  }
-
-
-  state.data.files.push(
-    ...supported
-  );
-
-  state.data.processing = true;
-
-  state.workspace.status =
-    "PROCESSING";
-
-  renderRoute();
-
-  simulateIngestion(supported);
-}
-
-
-function isSupportedFile(file) {
-
-  const allowed = [
-    "pdf",
-    "jpg",
-    "jpeg",
-    "png",
-    "webp",
-    "tiff",
-    "bmp",
-    "xlsx",
-    "xls",
-    "csv",
-    "ods",
-    "docx",
-    "doc",
-    "txt",
-    "rtf",
-    "md",
-    "json",
-    "xml"
-  ];
-
-  const extension =
-    file.name
-      .split(".")
-      .pop()
-      .toLowerCase();
-
-  return allowed.includes(extension);
-}
-
-
-/* =========================================================
-   DROPZONE
-   ========================================================= */
-
-function setupUploadDropzone() {
-
-  document.addEventListener(
-    "dragover",
-    event => {
-
-      const zone =
-        event.target.closest(".upload-zone");
-
-      if (!zone) return;
-
-      event.preventDefault();
-
-      zone.classList.add("dragover");
-    }
-  );
-
-
-  document.addEventListener(
-    "dragleave",
-    event => {
-
-      const zone =
-        event.target.closest(".upload-zone");
-
-      if (!zone) return;
-
-      zone.classList.remove("dragover");
-    }
-  );
-
-
-  document.addEventListener(
-    "drop",
-    event => {
-
-      const zone =
-        event.target.closest(".upload-zone");
-
-      if (!zone) return;
-
-      event.preventDefault();
-
-      zone.classList.remove("dragover");
-
-      handleFiles(
-        event.dataTransfer.files
-      );
-    }
-  );
-}
-
-
-/* =========================================================
-   SIMULATED INGESTION
-   ========================================================= */
-
-function simulateIngestion(files) {
-
-  /*
-    DEMO ONLY.
-
-    Production implementation must be:
-
-    Upload
-      ↓
-    SHA-256
-      ↓
-    Source Registration
-      ↓
-    File Security Check
-      ↓
-    File Type Detection
-      ↓
-    Extraction Router
-      ↓
-    OCR / Parser
-      ↓
-    Classification
-      ↓
-    Structuring
-      ↓
-    Validation
-      ↓
-    Duplicate Detection
-      ↓
-    Evidence Registration
-      ↓
-    READY
-  */
-
-  let completed = 0;
-
-  files.forEach((file, index) => {
-
-    setTimeout(() => {
-
-      completed++;
-
-      const percentage =
-        Math.round(
-          (completed / files.length) * 100
-        );
-
-      if (percentage >= 100) {
-
-        state.data.processing = false;
-
-        state.data.processed = true;
-
-        state.workspace.status =
-          "READY";
-
-        showToast(
-          "Data ingestion completed."
-        );
-
-        renderRoute();
-      }
-
-    }, 800 + index * 500);
-
-  });
-}
-
-
-/* =========================================================
-   UPLOAD PAGE
-   ========================================================= */
-
-function renderUploadPage(container) {
-
-  container.innerHTML = `
-
-    <div class="page-header">
-
-      <button
-        class="back-button"
-        onclick="navigate('data')"
-      >
-        ‹ Data Center
-      </button>
-
-      <div class="eyebrow">
-        DATA CENTER
-      </div>
-
-      <h1 class="page-title">
-        Upload Data
-      </h1>
-
-      <p class="page-description">
-        Upload files directly from your computer or device.
-        Gmail, Google Drive and URL sources are optional
-        integrations and are not part of this upload action.
-      </p>
-
-    </div>
-
-
-    <div
-      class="upload-zone"
-      onclick="openFilePicker()"
-    >
-
-      <div
-        class="text-4xl"
-        style="color:var(--navy)"
-      >
-        ↑
-      </div>
-
-      <h3>
-        Upload your financial data
-      </h3>
-
-      <p>
-        Click to choose files or drag them here.
-      </p>
-
-      <div class="supported-types mt-4">
-        PDF · EXCEL · CSV · IMAGES · DOCUMENTS · JSON · XML
-      </div>
-
-    </div>
-
-
-    <div class="file-list">
-
-      ${
-        state.data.files.length
-          ? state.data.files
-              .map(fileRow)
-              .join("")
-          : `
-            <div class="card text-center">
-              <div class="card-subtitle">
-                No files uploaded yet.
-              </div>
-            </div>
-          `
-      }
-
-    </div>
-
-  `;
-}
-
-
-function fileRow(file, index) {
-
-  return `
-
-    <div class="file-row">
-
-      <div class="min-w-0 flex-1">
-
-        <div class="file-name">
-          ${escapeHTML(file.name)}
-        </div>
-
-        <div class="text-[10px] text-slate-400 mt-1">
-          ${formatBytes(file.size)}
-        </div>
-
-        <div class="file-progress">
-          <span
-            style="width:${
-              state.workspace.status === "READY"
-                ? "100%"
-                : "72%"
-            }"
-          ></span>
-        </div>
-
-      </div>
-
-      <span class="status ${
-        state.workspace.status === "READY"
-          ? "status-valid"
-          : "status-info"
-      }">
-
-        ${
-          state.workspace.status === "READY"
-            ? "READY"
-            : "PROCESSING"
-        }
-
-      </span>
-
-    </div>
-  `;
-}
-
-
-/* =========================================================
-   OCR
-   ========================================================= */
-
-function renderOCRPage(container) {
-
-  container.innerHTML = `
-
-    <div class="page-header">
-
-      <button
-        class="back-button"
-        onclick="navigate('data')"
-      >
-        ‹ Data Center
-      </button>
-
-      <div class="eyebrow">
-        DATA CENTER
+        DATA CENTER / EXTRACTION
       </div>
 
       <h1 class="page-title">
@@ -2024,162 +2044,112 @@ function renderOCRPage(container) {
       </h1>
 
       <p class="page-description">
-        OCR is part of the Data Ingestion Engine.
-        Extracted values are not authoritative until validated.
+        OCR is part of the data ingestion engine for scanned PDFs
+        and images. Native digital text should be extracted directly
+        when possible.
       </p>
 
     </div>
 
-
-    <div class="card">
-
-      <div class="card-title">
-        Extraction Pipeline
-      </div>
-
-      <div class="card-subtitle">
-        File → Detection → Extraction / OCR → Classification
-        → Structuring → Validation → Evidence
-      </div>
-
-      <div class="grid grid-2 mt-6">
-
-        ${pipelineStep(
-          "01",
-          "File Detection",
-          "Identify format and processing route."
-        )}
-
-        ${pipelineStep(
-          "02",
-          "OCR / Extraction",
-          "Extract text, tables and document fields."
-        )}
-
-        ${pipelineStep(
-          "03",
-          "Structuring",
-          "Convert extracted content into controlled fields."
-        )}
-
-        ${pipelineStep(
-          "04",
-          "Validation",
-          "Check extracted data before registration."
-        )}
-
-      </div>
-
-    </div>
-  `;
-}
-
-
-function pipelineStep(
-  number,
-  title,
-  description
-) {
-
-  return `
-
-    <div class="border border-slate-200 rounded-xl p-4">
-
-      <div class="mono text-xs text-slate-400">
-        ${number}
-      </div>
-
-      <div class="font-semibold text-sm mt-2"
-           style="color:var(--navy)">
-        ${title}
-      </div>
-
-      <div class="text-xs text-slate-500 mt-1 leading-5">
-        ${description}
-      </div>
-
-    </div>
-  `;
-}
-
-
-/* =========================================================
-   DATA CENTER
-   ========================================================= */
-
-function renderDataCenter(container) {
-
-  container.innerHTML = `
-
-    <div class="page-header">
+    <section class="card page-card">
 
       <div class="eyebrow">
-        DATA CENTER
+        EXTRACTION FLOW
+      </div>
+
+      <div style="
+        margin-top:16px;
+        display:grid;
+        gap:9px;
+        color:#4b5563;
+        font-size:13px;
+      ">
+
+        <div>01 · File security check</div>
+        <div>02 · File type detection</div>
+        <div>03 · Extraction router</div>
+        <div>04 · Native text/table extraction or OCR</div>
+        <div>05 · Classification</div>
+        <div>06 · Structured data extraction</div>
+        <div>07 · Validation</div>
+        <div>08 · Duplicate detection</div>
+        <div>09 · Evidence registration</div>
+        <div>10 · READY / REPAIR / BLOCK</div>
+
+      </div>
+
+    </section>
+
+  `;
+
+}
+
+
+/* ============================================================
+   WORK
+============================================================ */
+
+function renderWork() {
+
+  $("#content").innerHTML = `
+
+    <div class="command-head">
+
+      <div class="eyebrow">
+        ALI PERSONAL COMMAND CENTER / WORK
       </div>
 
       <h1 class="page-title">
-        Data Center
+        Work
       </h1>
 
       <p class="page-description">
-        The controlled entry point for sources, documents,
-        ingestion, OCR, extraction and validation.
+        One place for investigation, reconciliation, findings,
+        exceptions and unresolved work.
       </p>
 
     </div>
 
+    <section class="command-grid">
 
-    <div class="grid grid-3">
-
-      ${dataCard(
-        "↑",
-        "Upload",
-        "Upload files from your computer or device.",
-        "upload"
+      ${workCard(
+        "Investigation",
+        "Trace observations into hypotheses, tests, evidence and conclusions.",
+        "investigation"
       )}
 
-      ${dataCard(
-        "⌗",
-        "OCR / Extraction",
-        "Review extraction and OCR processing.",
-        "ocr"
+      ${workCard(
+        "Reconciliation",
+        "Match records without silently turning probable matches into confirmed ones.",
+        "reconciliation"
       )}
 
-      ${dataCard(
-        "✓",
-        "Validation",
-        "Review data validation.",
-        "validation"
+      ${workCard(
+        "Findings",
+        "Track findings through controlled lifecycle states.",
+        "findings"
       )}
 
-    </div>
+      ${workCard(
+        "Exceptions",
+        "See data and control conditions that need attention.",
+        "exceptions"
+      )}
 
+      ${workCard(
+        "Unresolved",
+        "Keep unresolved matters visible until they are actually resolved.",
+        "unresolved"
+      )}
 
-    <div class="card mt-5">
+    </section>
 
-      <div class="card-title">
-        Optional Sources
-      </div>
-
-      <div class="card-subtitle">
-        Gmail, Google Drive and URL sources belong here as
-        authorized integrations. They do not replace local upload.
-      </div>
-
-      <button
-        class="btn btn-secondary mt-5"
-        onclick="navigate('integrations')"
-      >
-        Manage Integrations
-      </button>
-
-    </div>
   `;
+
 }
 
 
-function dataCard(
-  icon,
+function workCard(
   title,
   description,
   route
@@ -2188,460 +2158,1237 @@ function dataCard(
   return `
 
     <button
-      class="card text-left hover:-translate-y-0.5 transition-all"
+      class="card"
+      style="
+        border:1px solid #e5e7eb;
+        padding:25px;
+        text-align:left;
+        background:#fff;
+      "
       onclick="navigate('${route}')"
     >
 
       <div
-        class="text-2xl"
-        style="color:var(--navy)"
+        class="eyebrow"
+        style="color:#19a463"
       >
-        ${icon}
+        WORK
       </div>
 
-      <div class="card-title mt-4">
+      <div
+        class="card-title"
+        style="margin-top:9px"
+      >
         ${title}
       </div>
 
-      <div class="card-subtitle">
+      <div class="card-copy">
         ${description}
       </div>
 
       <div
-        class="text-xs font-semibold mt-5"
-        style="color:var(--navy)"
+        style="
+          margin-top:20px;
+          color:#6b7280;
+          font-size:12px;
+        "
       >
         Open →
       </div>
 
     </button>
+
   `;
+
 }
 
 
-/* =========================================================
-   PROCESSING CENTER
-   ========================================================= */
+/* ============================================================
+   WORK CHILD PAGES
+============================================================ */
 
-function renderProcessingCenter(container) {
+function renderInvestigation() {
 
-  container.innerHTML = `
+  renderWorkChild(
+    "Investigation",
+    "Trace each investigation through Observation → Hypothesis → Test → Evidence → Result → Conclusion.",
+    "INVESTIGATION"
+  );
 
-    <section class="ali-greeting">
+}
+
+
+function renderReconciliation() {
+
+  renderWorkChild(
+    "Reconciliation",
+    "Reconcile records using controlled match states: EXACT, PROBABLE, PARTIAL, AMBIGUOUS, NO_MATCH and CONTRADICTED.",
+    "RECONCILIATION"
+  );
+
+}
+
+
+function renderFindings() {
+
+  renderWorkChild(
+    "Findings",
+    "Finding lifecycle: OPEN → INVESTIGATING → BLOCKED / WAITING_USER → RESOLVED / REJECTED / INVALIDATED.",
+    "FINDINGS"
+  );
+
+}
+
+
+function renderExceptions() {
+
+  renderWorkChild(
+    "Exceptions",
+    "Exceptions are actionable control conditions. They remain visible until validated resolution.",
+    "EXCEPTIONS"
+  );
+
+}
+
+
+function renderUnresolved() {
+
+  renderWorkChild(
+    "Unresolved",
+    "UNRESOLVED_REGISTRY prevents unresolved issues from disappearing from the control system.",
+    "UNRESOLVED"
+  );
+
+}
+
+
+function renderWorkChild(
+  title,
+  description,
+  context
+) {
+
+  $("#content").innerHTML = `
+
+    ${backButton("Work", "work")}
+
+    <div class="command-head">
 
       <div class="eyebrow">
-        ALI PERSONAL COMMAND CENTER
+        WORK / ${context}
       </div>
 
-      <h1>
-        I’m checking your data.
+      <h1 class="page-title">
+        ${title}
       </h1>
 
-      <div class="ali-message">
-        I received the files. I’m extracting and validating
-        them before allowing downstream processing.
+      <p class="page-description">
+        ${description}
+      </p>
+
+      <div class="ali-line">
+        ALI will render authoritative records from the backend here.
+      </div>
+
+    </div>
+
+    <section class="card page-card">
+
+      <div class="eyebrow">
+        CONTROLLED WORKSPACE
+      </div>
+
+      <div class="card-copy">
+        No simulated findings or reconciliation results are generated
+        by the frontend.
       </div>
 
     </section>
 
-
-    <div class="card">
-
-      <div class="card-title">
-        Ingestion Pipeline
-      </div>
-
-      <div class="card-subtitle">
-        Upload → Extract / OCR → Classify → Validate
-        → Duplicate Check → Evidence
-      </div>
-
-      <div class="mt-6">
-
-        ${state.data.files
-          .map(fileRow)
-          .join("")
-        }
-
-      </div>
-
-    </div>
   `;
+
+  typeALI(
+    getContextualALIMessage(),
+    context
+  );
+
 }
 
 
-/* =========================================================
-   GENERIC PAGES
-   ========================================================= */
+/* ============================================================
+   RESET DATA
+============================================================ */
 
-function renderGenericPage(
-  container,
-  route
-) {
+function renderResetData() {
 
-  const config =
-    routes[route] || {
-      title: route,
-      eyebrow: "SPECIAL ALI",
-      description: ""
-    };
+  $("#content").innerHTML = `
 
+    ${backButton("Data Center", "data-overview")}
 
-  container.innerHTML = `
-
-    <div class="page-header">
-
-      ${
-        state.previousRoute &&
-        state.previousRoute !== route
-          ? `
-            <button
-              class="back-button"
-              onclick="navigate('${safeBackRoute(route)}')"
-            >
-              ‹ Back
-            </button>
-          `
-          : ""
-      }
+    <div class="command-head">
 
       <div class="eyebrow">
-        ${config.eyebrow}
+        DATA CENTER / CONTROL ACTION
       </div>
 
       <h1 class="page-title">
-        ${config.title}
+        Reset Data
       </h1>
 
       <p class="page-description">
-        ${config.description}
+        Resetting processed data is a controlled operation.
+        Dependent results may become STALE or INVALID and require
+        revalidation. Audit history is not silently removed.
       </p>
 
     </div>
 
-
-    <div class="card">
+    <section class="card page-card">
 
       <div class="card-title">
-        ${config.title}
+        Reset workspace data
       </div>
 
-      <div class="card-subtitle">
-        This interface is ready for the authoritative
-        SPECIAL ALI backend service.
+      <div class="card-copy">
+        This action must be authorized by the backend.
+        The frontend will never directly delete authoritative
+        database state.
       </div>
 
-      <div class="mt-5">
+      <div class="upload-actions">
 
-        <span class="status status-info">
-          BACKEND CONTROLLED
-        </span>
+        <button
+          class="btn btn-danger"
+          onclick="requestResetData()"
+        >
+          Reset Data
+        </button>
 
       </div>
+
+    </section>
+
+  `;
+
+}
+
+
+async function requestResetData() {
+
+  openConfirm(
+    "Reset workspace data?",
+    "This will request a controlled reset. Dependent results may become INVALID or STALE and require revalidation. Audit records remain protected.",
+    async () => {
+
+      await executeControlledMutation(
+        "/data/reset",
+        {
+          workspace_id:
+            state.workspace?.id
+        }
+      );
+
+    }
+  );
+
+}
+
+
+/* ============================================================
+   DELETE DATA
+============================================================ */
+
+function renderDeleteData() {
+
+  $("#content").innerHTML = `
+
+    ${backButton("Data Center", "data-overview")}
+
+    <div class="command-head">
+
+      <div class="eyebrow">
+        DATA CENTER / HIGH RISK
+      </div>
+
+      <h1 class="page-title">
+        Delete Data
+      </h1>
+
+      <p class="page-description">
+        Data deletion is a higher-risk operation.
+        Authorization, retention policy, legal hold and evidence
+        dependencies must be checked by the backend.
+      </p>
 
     </div>
+
+    <section class="card page-card">
+
+      <div class="card-title">
+        Controlled deletion
+      </div>
+
+      <div class="card-copy">
+        The browser cannot bypass authorization or retention policy.
+      </div>
+
+      <div class="upload-actions">
+
+        <button
+          class="btn btn-danger"
+          onclick="requestDeleteData()"
+        >
+          Delete Data
+        </button>
+
+      </div>
+
+    </section>
+
   `;
+
 }
 
 
-function safeBackRoute(route) {
+async function requestDeleteData() {
 
-  if (
-    [
-      "investigation",
-      "reconciliation",
-      "findings",
-      "exceptions",
-      "unresolved"
-    ].includes(route)
-  ) {
-    return "work";
-  }
+  openConfirm(
+    "Delete workspace data?",
+    "This is a high-risk operation. Only the authorized backend can decide whether deletion is permitted. Evidence under retention or legal hold must not be deleted.",
+    async () => {
 
-  return "command";
+      await executeControlledMutation(
+        "/data/delete",
+        {
+          workspace_id:
+            state.workspace?.id
+        }
+      );
+
+    }
+  );
+
 }
 
 
-/* =========================================================
-   ALI COMMAND INPUT
-   ========================================================= */
+/* ============================================================
+   REFRESH AUDIT
+============================================================ */
 
-function handleCommandKey(event) {
+function renderRefreshAudit() {
 
-  if (
-    event.key === "Enter"
-  ) {
-    askALI();
-  }
+  $("#content").innerHTML = `
+
+    ${backButton("Data Center", "data-overview")}
+
+    <div class="command-head">
+
+      <div class="eyebrow">
+        DATA CENTER / AUDIT
+      </div>
+
+      <h1 class="page-title">
+        Refresh Audit
+      </h1>
+
+      <p class="page-description">
+        Refresh Audit requests the backend to reload authoritative
+        execution, event and audit state.
+      </p>
+
+    </div>
+
+    <section class="card page-card">
+
+      <div class="card-title">
+        Synchronize audit state
+      </div>
+
+      <div class="card-copy">
+        This button does not merely refresh the browser.
+        It requests the backend audit state.
+      </div>
+
+      <div class="upload-actions">
+
+        <button
+          class="btn btn-primary"
+          onclick="refreshAudit()"
+        >
+          Refresh Audit
+        </button>
+
+      </div>
+
+    </section>
+
+  `;
+
 }
 
 
-function askALI() {
+async function refreshAudit() {
 
-  const input =
-    document.getElementById("commandInput");
+  try {
 
-  if (!input) return;
+    const result =
+      await apiRequest(
+        "/audit/refresh",
+        {
+          method: "POST",
+          body: {
+            workspace_id:
+              state.workspace?.id
+          }
+        }
+      );
 
-  const query =
-    input.value.trim();
-
-  if (!query) {
     showToast(
-      "Tell ALI what you want to investigate."
+      result?.message ||
+      "Audit state refreshed.",
+      "success"
     );
+
+  } catch (error) {
+
+    showToast(
+      normalizeError(error),
+      "warning"
+    );
+
+  }
+
+}
+
+
+/* ============================================================
+   CONTROLLED MUTATION
+============================================================ */
+
+async function executeControlledMutation(
+  endpoint,
+  body
+) {
+
+  try {
+
+    const result =
+      await apiRequest(
+        endpoint,
+        {
+          method: "POST",
+          body: {
+            ...body,
+
+            /*
+              Idempotency key.
+              Backend should enforce uniqueness.
+            */
+            idempotency_key:
+              crypto.randomUUID()
+          }
+        }
+      );
+
+    showToast(
+      result?.message ||
+      "Request accepted by backend.",
+      "success"
+    );
+
+  } catch (error) {
+
+    showToast(
+      normalizeError(error),
+      "error"
+    );
+
+  }
+
+}
+
+
+/* ============================================================
+   ACCOUNT
+============================================================ */
+
+function renderAccount() {
+
+  const fullName =
+    state.profile?.full_name ||
+    state.user?.user_metadata?.full_name ||
+    "User";
+
+  const email =
+    state.user?.email ||
+    "—";
+
+  const role =
+    state.profile?.role ||
+    state.workspace?.role ||
+    "Member";
+
+  $("#content").innerHTML = `
+
+    <div class="command-head">
+
+      <div class="eyebrow">
+        SETTINGS / ACCOUNT
+      </div>
+
+      <h1 class="page-title">
+        Account
+      </h1>
+
+      <p class="page-description">
+        Identity and session information.
+      </p>
+
+    </div>
+
+    <section class="card page-card">
+
+      <div class="table-wrap">
+
+        <table>
+
+          <tbody>
+
+            <tr>
+              <th>Full Name</th>
+              <td>${escapeHTML(fullName)}</td>
+            </tr>
+
+            <tr>
+              <th>Email</th>
+              <td>${escapeHTML(email)}</td>
+            </tr>
+
+            <tr>
+              <th>Role</th>
+              <td>${escapeHTML(role)}</td>
+            </tr>
+
+            <tr>
+              <th>Account Status</th>
+              <td>
+                ${state.user ? "Authenticated" : "Signed out"}
+              </td>
+            </tr>
+
+            <tr>
+              <th>Email Verification</th>
+              <td>
+                ${state.user?.email_confirmed_at
+                  ? "Verified"
+                  : "Not verified"}
+              </td>
+            </tr>
+
+            <tr>
+              <th>Last Sign-in</th>
+              <td>
+                ${state.user?.last_sign_in_at
+                  ? new Date(
+                      state.user.last_sign_in_at
+                    ).toLocaleString()
+                  : "—"}
+              </td>
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+      <div class="upload-actions">
+
+        <button
+          class="btn btn-danger"
+          onclick="logout()"
+        >
+          Sign out
+        </button>
+
+      </div>
+
+    </section>
+
+  `;
+
+}
+
+
+/* ============================================================
+   GENERIC PAGES
+============================================================ */
+
+function renderGenericPage(route) {
+
+  const definition =
+    ROUTES[route];
+
+  if (!definition) {
+    navigate("ali");
     return;
   }
 
-  /*
-    Production:
+  const section =
+    definition.section;
 
-    POST /api/v1/agent/messages
+  let back =
+    null;
 
-    {
-      session_id,
-      message,
-      workspace_id
+  if (
+    definition.parent
+  ) {
+
+    back =
+      definition.parent;
+
+  } else if (
+    section === "WORK"
+  ) {
+
+    back = "work";
+
+  }
+
+  $("#content").innerHTML = `
+
+    ${
+      back
+        ? backButton(
+            ROUTES[back]?.title ||
+            "Back",
+            back
+          )
+        : ""
     }
 
-    The LLM may interpret and plan.
-    It must not directly mutate authoritative state.
-  */
+    <div class="command-head">
 
-  showToast(
-    "ALI received your request. Backend agent execution is next."
-  );
+      <div class="eyebrow">
+        ${escapeHTML(section)}
+      </div>
 
-  input.value = "";
+      <h1 class="page-title">
+        ${escapeHTML(definition.title)}
+      </h1>
+
+      <p class="page-description">
+        This workspace is connected to the SPECIAL ALI control architecture.
+        Authoritative data will be rendered from Supabase/API state.
+      </p>
+
+    </div>
+
+    <section class="card page-card">
+
+      <div class="eyebrow">
+        BACKEND STATE
+      </div>
+
+      <div class="card-title">
+        Ready for authoritative data
+      </div>
+
+      <div class="card-copy">
+        No fake numbers are displayed here. When the backend returns
+        validated records, this page will render those records and
+        their evidence, rule, calculation, validation and proof status.
+      </div>
+
+    </section>
+
+  `;
+
 }
 
 
-/* =========================================================
+/* ============================================================
+   BACK BUTTON
+============================================================ */
+
+function backButton(
+  label,
+  route
+) {
+
+  return `
+
+    <button
+      class="back-nav"
+      type="button"
+      onclick="navigate('${route}')"
+    >
+      ← ${escapeHTML(label)}
+    </button>
+
+  `;
+
+}
+
+
+/* ============================================================
    SIDEBAR
-   ========================================================= */
+============================================================ */
 
 function toggleSidebar() {
 
-  const sidebar =
-    document.getElementById("sidebar");
+  if (
+    window.innerWidth <= 780
+  ) {
 
-  state.ui.sidebarOpen =
-    !state.ui.sidebarOpen;
+    toggleMobileSidebar();
+    return;
+
+  }
+
+  state.sidebarCollapsed =
+    !state.sidebarCollapsed;
+
+  localStorage.setItem(
+    "special_ali_sidebar",
+    state.sidebarCollapsed
+      ? "collapsed"
+      : "expanded"
+  );
+
+  applySidebarState();
+
+}
+
+
+function applySidebarState() {
+
+  const shell =
+    $("#appView");
+
+  if (!shell) {
+    return;
+  }
+
+  shell.classList.toggle(
+    "sidebar-collapsed",
+    state.sidebarCollapsed
+  );
+
+}
+
+
+function toggleMobileSidebar() {
+
+  const sidebar =
+    $("#sidebar");
+
+  const overlay =
+    $("#drawerOverlay");
+
+  state.mobileNavOpen =
+    !state.mobileNavOpen;
 
   sidebar.classList.toggle(
-    "open",
-    state.ui.sidebarOpen
+    "mobile-open",
+    state.mobileNavOpen
   );
+
+  overlay.classList.toggle(
+    "active",
+    state.mobileNavOpen
+  );
+
 }
 
 
 function closeMobileSidebar() {
 
-  const sidebar =
-    document.getElementById("sidebar");
+  state.mobileNavOpen =
+    false;
 
-  state.ui.sidebarOpen = false;
+  $("#sidebar")
+    ?.classList
+    .remove("mobile-open");
 
-  if (sidebar) {
-    sidebar.classList.remove("open");
-  }
+  $("#drawerOverlay")
+    ?.classList
+    .remove("active");
+
 }
 
 
-/* =========================================================
-   TOAST
-   ========================================================= */
+function handleResize() {
 
-let toastTimer = null;
+  if (
+    window.innerWidth > 780
+  ) {
+
+    closeMobileSidebar();
+
+  }
+
+}
 
 
-function showToast(message) {
+/* ============================================================
+   CONFIRMATION
+============================================================ */
 
-  const toast =
-    document.getElementById("toast");
+function openConfirm(
+  title,
+  message,
+  action
+) {
 
-  const text =
-    document.getElementById("toastText");
+  state.pendingConfirmation =
+    action;
 
-  if (!toast || !text) return;
+  $("#confirmTitle").textContent =
+    title;
 
-  text.textContent =
+  $("#confirmMessage").textContent =
     message;
 
-  toast.classList.remove("hidden");
+  $("#confirmModal")
+    .classList
+    .remove("hidden");
 
-  clearTimeout(toastTimer);
+  $("#confirmActionBtn").onclick =
+    async () => {
 
-  toastTimer =
-    setTimeout(() => {
+      closeConfirm();
 
-      toast.classList.add("hidden");
+      if (
+        typeof state.pendingConfirmation ===
+        "function"
+      ) {
 
-    }, 3200);
+        await state.pendingConfirmation();
+
+      }
+
+      state.pendingConfirmation =
+        null;
+
+    };
+
 }
 
 
-/* =========================================================
-   UTILITIES
-   ========================================================= */
+function closeConfirm() {
 
-function formatBytes(bytes) {
+  $("#confirmModal")
+    .classList
+    .add("hidden");
 
-  if (!bytes) {
-    return "0 B";
+  state.pendingConfirmation =
+    null;
+
+}
+
+
+/* ============================================================
+   TOAST
+============================================================ */
+
+function showToast(
+  message,
+  type = "info"
+) {
+
+  const container =
+    $("#toastContainer");
+
+  const toast =
+    document.createElement("div");
+
+  toast.className =
+    `toast ${type}`;
+
+  toast.textContent =
+    message;
+
+  container.appendChild(
+    toast
+  );
+
+  setTimeout(
+    () => toast.remove(),
+    4200
+  );
+
+}
+
+
+/* ============================================================
+   CONNECTION
+============================================================ */
+
+function setConnection(
+  online,
+  text
+) {
+
+  const connection =
+    $("#connection");
+
+  if (!connection) {
+    return;
   }
 
-  const units = [
-    "B",
-    "KB",
-    "MB",
-    "GB"
-  ];
+  connection.classList.toggle(
+    "online",
+    online
+  );
 
-  const index =
-    Math.floor(
-      Math.log(bytes) /
-      Math.log(1024)
+  $("#connectionText").textContent =
+    text;
+
+}
+
+
+/* ============================================================
+   API CLIENT
+============================================================ */
+
+async function apiRequest(
+  endpoint,
+  options = {},
+  requireAuth = true
+) {
+
+  if (!state.backendConfigured) {
+
+    throw new Error(
+      "Backend belum dikonfigurasi."
     );
 
-  return (
-    parseFloat(
-      (
-        bytes /
-        Math.pow(1024, index)
-      ).toFixed(1)
-    ) +
-    " " +
-    units[index]
+  }
+
+  let token = null;
+
+  if (requireAuth) {
+
+    const {
+      data
+    } =
+      await supabaseClient.auth.getSession();
+
+    if (!data?.session) {
+
+      throw new Error(
+        "Authentication session tidak tersedia."
+      );
+
+    }
+
+    token =
+      data.session.access_token;
+
+  }
+
+  const method =
+    options.method ||
+    "GET";
+
+  const headers = {
+    "Content-Type":
+      "application/json",
+
+    "Accept":
+      "application/json"
+  };
+
+  if (token) {
+
+    headers.Authorization =
+      `Bearer ${token}`;
+
+  }
+
+  const response =
+    await fetch(
+      `${CONFIG.API_BASE}${endpoint}`,
+      {
+        method,
+        headers,
+        body:
+          method === "GET" ||
+          method === "HEAD"
+            ? undefined
+            : JSON.stringify(
+                options.body || {}
+              )
+      }
+    );
+
+  let payload = null;
+
+  const contentType =
+    response.headers.get(
+      "content-type"
+    ) || "";
+
+  if (
+    contentType.includes(
+      "application/json"
+    )
+  ) {
+
+    payload =
+      await response.json();
+
+  } else {
+
+    const text =
+      await response.text();
+
+    payload =
+      text
+        ? { message: text }
+        : null;
+
+  }
+
+  if (!response.ok) {
+
+    const error =
+      new Error(
+        payload?.message ||
+        `API request failed (${response.status})`
+      );
+
+    error.status =
+      response.status;
+
+    error.payload =
+      payload;
+
+    throw error;
+
+  }
+
+  return payload;
+
+}
+
+
+/* ============================================================
+   ERROR NORMALIZATION
+============================================================ */
+
+function normalizeError(error) {
+
+  if (!error) {
+    return "Unknown error.";
+  }
+
+  if (
+    error.message
+  ) {
+    return error.message;
+  }
+
+  return String(error);
+
+}
+
+
+/* ============================================================
+   UTILS
+============================================================ */
+
+function sleep(ms) {
+
+  return new Promise(
+    resolve =>
+      setTimeout(
+        resolve,
+        ms
+      )
   );
+
+}
+
+
+function randomFrom(array) {
+
+  return array[
+    Math.floor(
+      Math.random() *
+      array.length
+    )
+  ];
+
 }
 
 
 function escapeHTML(value) {
 
-  return String(value)
+  return String(
+    value ?? ""
+  )
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+
 }
 
 
-/* =========================================================
-   DEVELOPMENT HELPERS
-   ========================================================= */
+/* ============================================================
+   PROCESSING ERROR
+============================================================ */
 
-/*
-   Browser console helpers:
+function renderProcessingError(
+  error
+) {
 
-   navigate("work")
-   navigate("findings")
-   navigate("reconciliation")
-   navigate("unresolved")
-   navigate("upload")
-   navigate("ocr")
+  $("#content").innerHTML = `
 
-   openAuth("signin")
-   openAuth("signup")
-*/
+    <div class="command-head">
+
+      <div class="eyebrow">
+        DATA INGESTION
+      </div>
+
+      <h1 class="page-title">
+        Processing stopped.
+      </h1>
+
+      <p class="page-description">
+        ALI could not confirm that the ingestion pipeline completed.
+        No successful result is being displayed as a substitute.
+      </p>
+
+    </div>
+
+    <section class="card page-card">
+
+      <div
+        style="
+          color:#c93636;
+          font-size:13px;
+          line-height:1.6;
+        "
+      >
+        ${escapeHTML(
+          normalizeError(error)
+        )}
+      </div>
+
+      <div class="upload-actions">
+
+        <button
+          class="btn btn-soft"
+          onclick="navigate('ingestion')"
+        >
+          Back to Ingestion
+        </button>
+
+      </div>
+
+    </section>
+
+  `;
+
+  typeALI(
+    "Saya belum bisa menyatakan data berhasil diproses. Kita berhenti di sini sampai execution backend memberikan status yang valid.",
+    "INGESTION_BLOCKED"
+  );
+
+}
 
 
-/* =========================================================
-   FUTURE BACKEND API CONTRACT PLACEHOLDERS
-   ========================================================= */
+/* ============================================================
+   GLOBAL KEYBOARD SHORTCUT
+   Ctrl/Cmd + K
+============================================================ */
 
-/*
-   These are intentionally not executed yet.
+document.addEventListener(
+  "keydown",
+  event => {
 
-   They document the boundary between UI and engine.
+    if (
+      (event.ctrlKey ||
+        event.metaKey) &&
+      event.key.toLowerCase() === "k"
+    ) {
 
-   ---------------------------------------------------------
+      event.preventDefault();
 
-   POST /api/v1/agent/sessions
+      toggleALI(true);
 
-   POST /api/v1/agent/messages
+      const input =
+        $("#aliInput");
 
-   GET /api/v1/agent/executions/:id
+      if (input) {
+        input.focus();
+      }
 
-   POST /api/v1/agent/executions/:id/approve
+    }
 
-   POST /api/v1/agent/executions/:id/cancel
+    if (
+      event.key === "Escape"
+    ) {
 
-   ---------------------------------------------------------
+      closeMobileSidebar();
 
-   POST /api/v1/data/sources
+      if (
+        !$("#confirmModal")
+          .classList
+          .contains("hidden")
+      ) {
+        closeConfirm();
+      }
 
-   POST /api/v1/data/uploads
+    }
 
-   POST /api/v1/data/ingestion
+  }
+);
 
-   GET /api/v1/data/ingestion/:id
 
-   ---------------------------------------------------------
-
-   GET /api/v1/findings
-
-   GET /api/v1/reconciliations
-
-   GET /api/v1/unresolved
-
-   ---------------------------------------------------------
-
-   POST /api/v1/accounting/journal/proposals
-
-   POST /api/v1/accounting/journal/:id/approve
-
-   ---------------------------------------------------------
-
-   POST /api/v1/tax/calculations
-
-   GET /api/v1/tax/rules
-
-   ---------------------------------------------------------
-
-   GET /api/v1/proofs/:id
-
-   GET /api/v1/audit/executions/:id
-
-   ---------------------------------------------------------
+/* ============================================================
+   SECURITY / UI BOUNDARY NOTE
 
    IMPORTANT:
 
-   UI must never assume:
+   Never put:
+   - service_role key
+   - database password
+   - private API secret
+   - OpenAI private server key
+   - OCR provider secret
 
-   "button clicked = state changed"
+   into this file.
 
-   Backend must return authoritative state.
+   Browser receives only:
+   - Supabase public anon key
+   - authenticated session
+   - data authorized by RLS/API.
 
-   Example:
-
-   UI action
-      ↓
-   API
-      ↓
-   authorization
-      ↓
-   validation
-      ↓
-   lock
-      ↓
-   read/version verification
-      ↓
-   apply
-      ↓
-   validate
-      ↓
-   commit
-      ↓
-   audit event
-      ↓
-   authoritative response
-      ↓
-   UI
-*/
+   All authoritative mutations happen server-side.
+============================================================ */
 
 
-/* =========================================================
-   END
-   ========================================================= */
+/* ============================================================
+   OPTIONAL PUBLIC HELPERS
+============================================================ */
+
+window.SPECIAL_ALI = {
+
+  navigate,
+
+  toggleALI,
+
+  openFilePicker,
+
+  logout,
+
+  showAuth,
+
+  closeAuth
+
+};
