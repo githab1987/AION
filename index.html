@@ -7,56 +7,74 @@
     content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   />
 
-  <title>SPECIAL ALI — Financial Control Operating System</title>
+  <title>SPECIAL ALI — Financial Control without the noise.</title>
 
   <meta
     name="description"
     content="SPECIAL ALI — Financial Control without the noise."
   />
 
-  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Inter", "system-ui", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    };
+  </script>
 
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet"
   />
 
+  <script
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+    defer
+  ></script>
+
   <style>
     :root {
-      --navy: #123f68;
-      --navy-dark: #0b2f50;
-      --green: #46b957;
-      --bg: #f4f7f8;
+      --ink: #111827;
+      --muted: #6b7280;
+      --subtle: #9ca3af;
+      --line: #e5e7eb;
       --surface: #ffffff;
-      --ink: #102536;
-      --muted: #6c7b87;
-      --border: #e3e9ed;
+      --soft: #f7f8fa;
+      --green: #19a463;
+      --green-dark: #12804d;
       --danger: #c93636;
-      --warning: #b97813;
-      --success: #2d9440;
+      --warning: #a56a00;
+      --blue: #2563eb;
+      --sidebar: 252px;
     }
 
     * {
       box-sizing: border-box;
     }
 
-    html {
-      scroll-behavior: smooth;
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
+      background: #fff;
+      color: var(--ink);
+      font-family: Inter, system-ui, sans-serif;
     }
 
     body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--ink);
-      font-family: "Inter", sans-serif;
-      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
 
     button,
@@ -70,102 +88,131 @@
       cursor: pointer;
     }
 
-    .mono {
-      font-family: "JetBrains Mono", monospace;
-    }
-
     .hidden {
       display: none !important;
     }
 
-    /* --------------------------------
-       BRAND
-    -------------------------------- */
-
-    .sa-mark {
-      position: relative;
-      width: 56px;
-      height: 56px;
-      margin: 0 auto 22px;
+    .mono {
+      font-family: "JetBrains Mono", monospace;
     }
 
-    .sa-mark::before,
-    .sa-mark::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border: 1.5px solid var(--navy);
-      transform: rotate(45deg);
-      border-radius: 9px;
-    }
+    /* ------------------------------
+       LANDING
+    ------------------------------ */
 
-    .sa-mark::after {
-      inset: 8px;
-      border-color: var(--green);
-      transform: rotate(45deg);
-    }
-
-    .sa-core {
-      position: absolute;
-      inset: 16px;
-      border-radius: 8px;
-      background: var(--navy);
-      color: white;
+    .landing {
+      min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
-      font-size: 12px;
-      letter-spacing: -0.04em;
-      z-index: 2;
+      padding: 32px;
+      background:
+        radial-gradient(
+          circle at 50% 35%,
+          rgba(25, 164, 99, 0.045),
+          transparent 34%
+        ),
+        #fff;
     }
 
-    .brand-small {
-      display: flex;
+    .landing-inner {
+      width: min(760px, 100%);
+      text-align: center;
+      transform: translateY(-2vh);
+    }
+
+    .brand {
+      display: inline-flex;
       align-items: center;
-      gap: 10px;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      color: var(--navy);
+      gap: 12px;
+      color: var(--ink);
+      font-weight: 700;
+      letter-spacing: -0.035em;
     }
 
-    .brand-small .mini-mark {
-      width: 28px;
-      height: 28px;
+    .brand-mark {
+      width: 38px;
+      height: 38px;
       position: relative;
-      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
     }
 
-    .brand-small .mini-mark::before,
-    .brand-small .mini-mark::after {
+    .brand-mark::before,
+    .brand-mark::after {
       content: "";
       position: absolute;
-      inset: 3px;
-      border: 1px solid var(--navy);
+      inset: 4px;
+      border: 1.5px solid var(--ink);
       transform: rotate(45deg);
-      border-radius: 4px;
+      border-radius: 8px;
     }
 
-    .brand-small .mini-mark::after {
+    .brand-mark::after {
       inset: 8px;
       border-color: var(--green);
+      transform: rotate(0deg);
+      border-radius: 6px;
     }
 
-    /* --------------------------------
-       BUTTONS
-    -------------------------------- */
+    .brand-mark span {
+      position: relative;
+      z-index: 2;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+
+    .brand-name {
+      font-size: 17px;
+      letter-spacing: -0.035em;
+    }
+
+    .hero-title {
+      margin: 42px auto 0;
+      max-width: 760px;
+      font-size: clamp(48px, 8vw, 92px);
+      line-height: 0.98;
+      letter-spacing: -0.065em;
+      font-weight: 600;
+    }
+
+    .hero-tagline {
+      margin-top: 24px;
+      font-size: clamp(20px, 3vw, 29px);
+      line-height: 1.25;
+      letter-spacing: -0.035em;
+      color: #3f4650;
+    }
+
+    .hero-copy {
+      margin: 28px auto 0;
+      max-width: 600px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 16px;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 36px;
+      flex-wrap: wrap;
+    }
 
     .btn {
       border: 0;
-      border-radius: 12px;
-      min-height: 46px;
-      padding: 0 20px;
+      border-radius: 999px;
+      padding: 13px 22px;
+      font-size: 14px;
       font-weight: 600;
       transition:
         transform 180ms ease,
         box-shadow 180ms ease,
-        background 180ms ease,
-        border-color 180ms ease;
+        background 180ms ease;
     }
 
     .btn:hover {
@@ -173,788 +220,979 @@
     }
 
     .btn-primary {
+      background: var(--ink);
       color: white;
-      background: var(--navy);
-      box-shadow: 0 8px 24px rgba(18, 63, 104, 0.14);
+      box-shadow: 0 8px 24px rgba(17, 24, 39, 0.13);
     }
 
     .btn-primary:hover {
-      background: var(--navy-dark);
-      box-shadow: 0 12px 30px rgba(18, 63, 104, 0.2);
+      background: #000;
+      box-shadow: 0 12px 30px rgba(17, 24, 39, 0.18);
     }
 
-    .btn-secondary {
-      background: white;
-      color: var(--navy);
-      border: 1px solid var(--border);
+    .btn-soft {
+      background: #f5f6f7;
+      color: var(--ink);
     }
 
-    .btn-secondary:hover {
-      border-color: #c9d5dc;
-      background: #fbfcfd;
+    .btn-soft:hover {
+      background: #eceef0;
     }
 
-    .btn-ghost {
+    .btn-green {
+      background: var(--green);
+      color: white;
+    }
+
+    .btn-danger {
+      background: #fff1f1;
+      color: var(--danger);
+    }
+
+    .btn-link {
       background: transparent;
-      color: var(--muted);
+      color: var(--ink);
       padding-left: 8px;
       padding-right: 8px;
     }
 
-    .btn-ghost:hover {
-      color: var(--navy);
-      background: rgba(18, 63, 104, 0.04);
+    .learn-link {
+      display: inline-block;
+      margin-top: 30px;
+      color: #555b64;
+      text-decoration: none;
+      font-size: 15px;
     }
 
-    /* --------------------------------
-       LANDING
-    -------------------------------- */
-
-    .landing {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 24px;
-      background:
-        radial-gradient(
-          circle at 50% 30%,
-          rgba(70, 185, 87, 0.05),
-          transparent 28%
-        ),
-        var(--bg);
-    }
-
-    .landing-content {
-      width: 100%;
-      max-width: 820px;
-      text-align: center;
-    }
-
-    .landing h1 {
-      margin: 0;
-      color: var(--navy);
-      font-size: clamp(42px, 7vw, 76px);
-      line-height: 0.95;
-      letter-spacing: -0.065em;
-      font-weight: 800;
-    }
-
-    .landing-tagline {
-      margin-top: 18px;
-      color: var(--muted);
-      font-size: clamp(17px, 2vw, 21px);
-      letter-spacing: -0.015em;
-    }
-
-    .landing-actions {
-      margin-top: 38px;
-      display: flex;
-      justify-content: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .landing-poetry {
-      margin: 42px auto 0;
-      max-width: 630px;
-      color: #667680;
-      font-size: 16px;
-      line-height: 1.8;
-    }
-
-    .landing-poetry strong {
+    .learn-link strong {
       color: var(--ink);
-      font-weight: 700;
     }
 
-    /* --------------------------------
+    /* ------------------------------
        APP SHELL
-    -------------------------------- */
+    ------------------------------ */
 
     .app-shell {
       min-height: 100vh;
+      min-height: 100dvh;
       display: grid;
-      grid-template-columns: 238px minmax(0, 1fr);
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+      background: var(--soft);
     }
 
     .sidebar {
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      overflow-y: auto;
-      background: white;
-      border-right: 1px solid var(--border);
-      padding: 22px 14px;
-      z-index: 30;
+      background: rgba(255,255,255,.96);
+      border-right: 1px solid var(--line);
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: var(--sidebar);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      transition:
+        width 220ms ease,
+        transform 220ms ease;
+      overflow: hidden;
+    }
+
+    .app-shell.sidebar-collapsed {
+      --sidebar: 76px;
+    }
+
+    .sidebar-top {
+      height: 76px;
+      padding: 0 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
     }
 
     .sidebar-brand {
-      padding: 4px 10px 26px;
+      min-width: 0;
+      overflow: hidden;
     }
 
-    .sidebar-section {
-      margin-top: 18px;
+    .sidebar-brand .brand {
+      white-space: nowrap;
     }
 
-    .sidebar-label {
-      padding: 0 10px 7px;
-      color: #9aa7af;
+    .collapse-btn {
+      width: 34px;
+      height: 34px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+
+    .collapse-btn:hover {
+      background: #f3f4f6;
+      color: var(--ink);
+    }
+
+    .sidebar-scroll {
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 18px 12px 28px;
+    }
+
+    .nav-section {
+      margin-bottom: 22px;
+    }
+
+    .nav-label {
+      padding: 0 12px 8px;
       font-size: 10px;
+      color: #a0a6ae;
       font-weight: 700;
-      letter-spacing: 0.14em;
+      letter-spacing: .13em;
     }
 
     .nav-item {
       width: 100%;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 11px;
+      min-height: 42px;
+      padding: 9px 12px;
       border: 0;
       background: transparent;
-      color: #62727d;
-      padding: 9px 10px;
-      border-radius: 9px;
-      font-size: 13px;
+      color: #626973;
+      border-radius: 11px;
       text-align: left;
-      transition: 160ms ease;
+      font-size: 13px;
+      font-weight: 500;
+      transition:
+        background 160ms ease,
+        color 160ms ease;
+      white-space: nowrap;
+      overflow: hidden;
     }
 
     .nav-item:hover {
-      color: var(--navy);
-      background: #f5f8fa;
+      background: #f5f6f7;
+      color: var(--ink);
     }
 
     .nav-item.active {
-      color: var(--navy);
-      background: #edf4f8;
+      background: #f0f8f4;
+      color: #12804d;
       font-weight: 600;
     }
 
     .nav-icon {
       width: 18px;
-      text-align: center;
-      opacity: 0.8;
+      height: 18px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+    }
+
+    .nav-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 14px 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .user-mini {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      border-radius: 12px;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #edf0f2;
+      color: var(--ink);
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .user-meta {
+      min-width: 0;
+    }
+
+    .user-name {
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-role {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 2px;
     }
 
     .main {
       min-width: 0;
+      margin-left: var(--sidebar);
+      transition: margin-left 220ms ease;
     }
 
     .topbar {
-      height: 68px;
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
+      height: 76px;
+      background: rgba(255,255,255,.88);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--line);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 28px;
+      padding: 0 30px;
       position: sticky;
       top: 0;
-      z-index: 20;
+      z-index: 50;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .mobile-menu-btn {
+      display: none;
+      border: 0;
+      background: #f3f4f6;
+      border-radius: 10px;
+      width: 38px;
+      height: 38px;
+    }
+
+    .topbar-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
     }
 
     .connection {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 7px;
-      font-size: 11px;
       color: var(--muted);
+      font-size: 11px;
     }
 
     .connection-dot {
       width: 7px;
       height: 7px;
-      border-radius: 999px;
+      border-radius: 50%;
+      background: #d1d5db;
+    }
+
+    .connection.online .connection-dot {
       background: var(--green);
     }
 
-    .workspace-content {
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 46px 34px 80px;
-    }
-
-    /* --------------------------------
-       PAGE
-    -------------------------------- */
-
-    .page-header {
-      margin-bottom: 30px;
-    }
-
-    .back-button {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
+    .account-btn {
       border: 0;
-      background: transparent;
-      color: var(--muted);
-      padding: 0;
-      margin-bottom: 18px;
-      font-size: 13px;
+      background: #f5f6f7;
+      border-radius: 999px;
+      padding: 6px 10px 6px 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    .back-button:hover {
-      color: var(--navy);
+    .account-btn .avatar {
+      width: 28px;
+      height: 28px;
+    }
+
+    .content {
+      width: min(1380px, 100%);
+      margin: 0 auto;
+      padding: 42px clamp(20px, 4vw, 56px) 80px;
+    }
+
+    /* ------------------------------
+       COMMAND CENTER
+    ------------------------------ */
+
+    .command-head {
+      max-width: 900px;
+      margin-bottom: 34px;
     }
 
     .eyebrow {
-      color: var(--green);
-      font-size: 11px;
+      font-size: 10px;
+      color: #8b929b;
       font-weight: 700;
-      letter-spacing: 0.12em;
+      letter-spacing: .14em;
       text-transform: uppercase;
     }
 
     .page-title {
-      margin: 7px 0 0;
-      font-size: clamp(28px, 4vw, 42px);
-      letter-spacing: -0.05em;
-      line-height: 1;
-      color: var(--navy);
-      font-weight: 800;
+      margin-top: 12px;
+      font-size: clamp(32px, 5vw, 54px);
+      line-height: 1.02;
+      letter-spacing: -.055em;
+      font-weight: 600;
     }
 
     .page-description {
-      margin-top: 12px;
-      max-width: 720px;
+      margin-top: 15px;
+      max-width: 700px;
       color: var(--muted);
-      line-height: 1.7;
-      font-size: 14px;
-    }
-
-    /* --------------------------------
-       COMMAND CENTER
-    -------------------------------- */
-
-    .ali-greeting {
-      max-width: 850px;
-      margin-bottom: 36px;
-    }
-
-    .ali-greeting h1 {
-      margin: 7px 0 0;
-      color: var(--navy);
-      font-size: clamp(32px, 5vw, 52px);
-      letter-spacing: -0.06em;
-      line-height: 1;
-    }
-
-    .ali-message {
-      margin-top: 16px;
-      color: var(--muted);
-      line-height: 1.7;
       font-size: 15px;
-      min-height: 26px;
+      line-height: 1.7;
     }
 
-    .typing-cursor {
-      display: inline-block;
-      width: 2px;
-      height: 15px;
-      background: var(--green);
-      margin-left: 3px;
-      vertical-align: -2px;
-      animation: blink 900ms infinite;
-    }
-
-    @keyframes blink {
-      50% { opacity: 0; }
-    }
-
-    .command-card {
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 42px;
-      text-align: center;
-      box-shadow: 0 12px 40px rgba(16, 37, 54, 0.035);
-    }
-
-    .upload-symbol {
-      width: 54px;
-      height: 54px;
-      margin: 0 auto 18px;
-      border-radius: 16px;
-      background: #edf6ef;
-      color: var(--green);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 25px;
-      font-weight: 700;
-    }
-
-    .command-card h2 {
-      margin: 0;
-      font-size: 24px;
-      color: var(--navy);
-      letter-spacing: -0.035em;
-    }
-
-    .command-card p {
-      margin: 10px auto 0;
-      color: var(--muted);
-      max-width: 550px;
+    .ali-line {
+      min-height: 28px;
+      margin-top: 20px;
       font-size: 14px;
-      line-height: 1.65;
+      color: #3f4650;
+      line-height: 1.7;
     }
 
-    .supported-types {
-      margin: 18px 0 24px;
-      color: #84929b;
-      font-size: 11px;
-      letter-spacing: 0.05em;
-    }
-
-    .ask-box {
-      margin-top: 22px;
-      display: flex;
-      max-width: 620px;
-      margin-left: auto;
-      margin-right: auto;
-      gap: 8px;
-    }
-
-    .input {
-      min-width: 0;
-      flex: 1;
-      height: 46px;
-      border: 1px solid var(--border);
-      border-radius: 11px;
-      padding: 0 14px;
-      background: #fbfcfd;
-      outline: none;
-      color: var(--ink);
-    }
-
-    .input:focus {
-      border-color: #b7c8d4;
-      box-shadow: 0 0 0 3px rgba(18, 63, 104, 0.05);
-    }
-
-    .empty-status {
-      margin-top: 22px;
-      font-size: 11px;
-      color: #9aa7af;
-    }
-
-    /* --------------------------------
-       CARDS / GRID
-    -------------------------------- */
-
-    .grid {
+    .command-grid {
       display: grid;
-      gap: 16px;
-    }
-
-    .grid-2 {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .grid-3 {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr);
+      gap: 20px;
     }
 
     .card {
       background: white;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 8px 40px rgba(17,24,39,.035);
+    }
+
+    .upload-card {
+      min-height: 360px;
+      padding: clamp(24px, 4vw, 42px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .upload-symbol {
+      width: 58px;
+      height: 58px;
+      border-radius: 17px;
+      background: #f1f8f4;
+      color: var(--green);
+      display: grid;
+      place-items: center;
+      font-size: 26px;
+      margin-bottom: 22px;
     }
 
     .card-title {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--navy);
+      font-size: 24px;
+      letter-spacing: -.035em;
+      font-weight: 600;
     }
 
-    .card-subtitle {
+    .card-copy {
+      margin-top: 10px;
+      max-width: 620px;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    .formats {
+      margin-top: 16px;
+      color: #9298a0;
+      font-size: 11px;
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    .upload-actions {
+      margin-top: 26px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .ask-card {
+      padding: 28px;
+      min-height: 360px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ask-card textarea {
+      width: 100%;
+      min-height: 130px;
+      resize: vertical;
+      margin-top: 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 15px;
+      outline: none;
+      font-size: 13px;
+      line-height: 1.6;
+      transition: border 160ms ease, box-shadow 160ms ease;
+    }
+
+    .ask-card textarea:focus {
+      border-color: #a9d8c0;
+      box-shadow: 0 0 0 4px rgba(25,164,99,.08);
+    }
+
+    .ask-response {
+      margin-top: auto;
+      padding-top: 20px;
       color: var(--muted);
       font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .state-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .state-card {
+      padding: 18px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+
+    .state-value {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -.03em;
+    }
+
+    .state-label {
       margin-top: 5px;
-      line-height: 1.5;
+      font-size: 11px;
+      color: var(--muted);
     }
 
-    .metric {
-      font-size: 30px;
-      color: var(--navy);
-      font-weight: 800;
-      letter-spacing: -0.05em;
-      margin-top: 18px;
+    /* ------------------------------
+       DATA PROCESSING
+    ------------------------------ */
+
+    .processing-card {
+      padding: 26px;
+      margin-top: 20px;
     }
 
-    /* --------------------------------
-       TABLE
-    -------------------------------- */
+    .processing-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid #f0f1f2;
+    }
 
-    .table-card {
+    .processing-row:last-child {
+      border-bottom: 0;
+    }
+
+    .progress {
+      height: 6px;
+      background: #edf0f2;
+      border-radius: 99px;
       overflow: hidden;
-      padding: 0;
+      margin-top: 10px;
     }
 
-    .table-header {
-      padding: 20px 22px;
-      border-bottom: 1px solid var(--border);
+    .progress > span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: var(--green);
+      border-radius: inherit;
+      transition: width 300ms ease;
     }
 
-    .table-scroll {
+    .status {
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .status.ready {
+      color: var(--green-dark);
+    }
+
+    .status.warning {
+      color: var(--warning);
+    }
+
+    .status.blocked {
+      color: var(--danger);
+    }
+
+    /* ------------------------------
+       RESULT ROUTING
+    ------------------------------ */
+
+    .route-card {
+      padding: 30px;
+      margin-top: 20px;
+    }
+
+    .route-options {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .route-option {
+      text-align: left;
+      border: 1px solid var(--line);
+      background: white;
+      padding: 18px;
+      border-radius: 15px;
+      transition:
+        border 160ms ease,
+        transform 160ms ease,
+        box-shadow 160ms ease;
+    }
+
+    .route-option:hover {
+      transform: translateY(-2px);
+      border-color: #cfd5d9;
+      box-shadow: 0 10px 28px rgba(17,24,39,.06);
+    }
+
+    .route-option strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .route-option span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    /* ------------------------------
+       GENERIC PAGE
+    ------------------------------ */
+
+    .page-card {
+      margin-top: 24px;
+      padding: clamp(22px, 4vw, 34px);
+    }
+
+    .table-wrap {
       overflow-x: auto;
+      margin-top: 20px;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 620px;
+      min-width: 680px;
     }
 
     th,
     td {
-      padding: 13px 22px;
-      border-bottom: 1px solid #edf1f3;
+      padding: 13px 12px;
+      border-bottom: 1px solid #eef0f2;
       text-align: left;
       font-size: 12px;
     }
 
     th {
-      color: #84919a;
+      color: #8b929b;
       font-size: 10px;
       text-transform: uppercase;
-      letter-spacing: 0.09em;
-      font-weight: 700;
+      letter-spacing: .08em;
     }
 
-    td {
-      color: #50616d;
-    }
+    /* ------------------------------
+       BACK NAV
+    ------------------------------ */
 
-    /* --------------------------------
-       STATUS
-    -------------------------------- */
-
-    .status {
+    .back-nav {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      border-radius: 999px;
-      padding: 5px 9px;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.03em;
-    }
-
-    .status-valid {
-      color: var(--success);
-      background: #edf8ef;
-    }
-
-    .status-warning {
-      color: var(--warning);
-      background: #fff7e8;
-    }
-
-    .status-blocked {
-      color: var(--danger);
-      background: #fceded;
-    }
-
-    .status-info {
-      color: var(--navy);
-      background: #edf4f8;
-    }
-
-    /* --------------------------------
-       UPLOAD
-    -------------------------------- */
-
-    .upload-zone {
-      border: 1.5px dashed #bfd0d9;
-      border-radius: 18px;
-      padding: 52px 24px;
-      text-align: center;
-      background: #fbfcfd;
-      transition: 180ms ease;
-    }
-
-    .upload-zone.dragover {
-      border-color: var(--green);
-      background: #f3faf4;
-    }
-
-    .upload-zone h3 {
-      margin: 14px 0 7px;
-      color: var(--navy);
-      font-size: 18px;
-    }
-
-    .upload-zone p {
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    .file-list {
-      margin-top: 20px;
-      display: grid;
-      gap: 9px;
-    }
-
-    .file-row {
-      background: white;
-      border: 1px solid var(--border);
-      border-radius: 11px;
-      padding: 12px 14px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    .file-name {
-      color: var(--ink);
+      gap: 7px;
+      border: 0;
+      background: transparent;
+      color: #6b7280;
       font-size: 12px;
-      font-weight: 600;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      padding: 0;
+      margin-bottom: 24px;
     }
 
-    .file-progress {
-      height: 4px;
-      border-radius: 99px;
-      background: #e8edef;
-      overflow: hidden;
-      margin-top: 7px;
-    }
-
-    .file-progress > span {
-      display: block;
-      height: 100%;
-      width: 0;
-      background: var(--green);
-      transition: width 300ms ease;
-    }
-
-    /* --------------------------------
-       LEARN MORE
-    -------------------------------- */
-
-    .learn-page {
-      min-height: 100vh;
-      padding: 34px 24px 80px;
-      background: var(--bg);
-    }
-
-    .learn-inner {
-      max-width: 920px;
-      margin: 0 auto;
-    }
-
-    .learn-hero {
-      padding: 80px 20px 60px;
-      text-align: center;
-    }
-
-    .learn-hero h1 {
-      color: var(--navy);
-      font-size: clamp(38px, 7vw, 70px);
-      letter-spacing: -0.065em;
-      line-height: 0.98;
-    }
-
-    .poem {
-      max-width: 700px;
-      margin: 30px auto 0;
-      color: #647681;
-      line-height: 2;
-      font-size: 17px;
-    }
-
-    .poem strong {
+    .back-nav:hover {
       color: var(--ink);
-      font-weight: 800;
     }
 
-    .feature {
-      padding: 26px 0;
-      border-top: 1px solid var(--border);
+    /* ------------------------------
+       OVERLAY / MOBILE
+    ------------------------------ */
+
+    .drawer-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.28);
+      z-index: 90;
     }
 
-    .feature h3 {
-      margin: 0;
-      color: var(--navy);
-      font-size: 18px;
+    .drawer-overlay.active {
+      display: block;
     }
 
-    .feature p {
-      color: var(--muted);
-      line-height: 1.75;
-      font-size: 14px;
-      margin-top: 8px;
-    }
-
-    /* --------------------------------
-       AUTH
-    -------------------------------- */
+    /* ------------------------------
+       MODAL
+    ------------------------------ */
 
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      z-index: 100;
-      background: rgba(10, 29, 43, 0.32);
-      backdrop-filter: blur(7px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      z-index: 300;
+      background: rgba(15,23,42,.38);
+      backdrop-filter: blur(8px);
+      display: grid;
+      place-items: center;
       padding: 20px;
     }
 
     .modal {
-      width: 100%;
-      max-width: 440px;
+      width: min(480px, 100%);
       background: white;
-      border-radius: 20px;
-      padding: 30px;
-      box-shadow: 0 30px 80px rgba(10, 29, 43, 0.2);
+      border-radius: 22px;
+      padding: 28px;
+      box-shadow: 0 30px 100px rgba(0,0,0,.18);
     }
 
-    .modal-header {
-      margin-bottom: 22px;
+    .modal h3 {
+      margin: 0;
+      font-size: 21px;
+      letter-spacing: -.035em;
     }
 
-    .modal-header h2 {
-      color: var(--navy);
-      font-size: 25px;
-      letter-spacing: -0.04em;
-    }
-
-    .modal-header p {
+    .modal p {
+      margin: 10px 0 0;
       color: var(--muted);
       font-size: 13px;
-      margin-top: 6px;
+      line-height: 1.65;
     }
 
-    .form-group {
-      margin-bottom: 14px;
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 25px;
     }
 
-    .form-label {
-      display: block;
-      color: #586a75;
-      font-size: 11px;
-      font-weight: 700;
-      margin-bottom: 6px;
+    /* ------------------------------
+       TOAST
+    ------------------------------ */
+
+    .toast-container {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: min(380px, calc(100vw - 44px));
     }
 
-    .auth-switch {
-      text-align: center;
-      margin-top: 18px;
+    .toast {
+      background: #111827;
+      color: white;
+      border-radius: 14px;
+      padding: 13px 15px;
+      box-shadow: 0 15px 45px rgba(0,0,0,.18);
       font-size: 12px;
-      color: var(--muted);
+      line-height: 1.5;
+      animation: toastIn 220ms ease;
     }
 
-    .auth-switch button {
-      border: 0;
-      background: transparent;
-      color: var(--navy);
+    .toast.success {
+      background: #116b43;
+    }
+
+    .toast.warning {
+      background: #805600;
+    }
+
+    .toast.error {
+      background: #9d2525;
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ------------------------------
+       ALI PANEL
+    ------------------------------ */
+
+    .ali-panel {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      width: min(440px, calc(100vw - 44px));
+      z-index: 180;
+      background: rgba(255,255,255,.96);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: 0 25px 80px rgba(17,24,39,.13);
+      overflow: hidden;
+      animation: aliIn 220ms ease;
+    }
+
+    @keyframes aliIn {
+      from {
+        opacity: 0;
+        transform: translateY(14px) scale(.98);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .ali-head {
+      padding: 17px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .ali-title {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 12px;
       font-weight: 700;
     }
 
-    /* --------------------------------
-       MOBILE
-    -------------------------------- */
-
-    .mobile-menu-button {
-      display: none;
+    .ali-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
     }
 
-    @media (max-width: 980px) {
-      .app-shell {
+    .ali-close {
+      width: 30px;
+      height: 30px;
+      border: 0;
+      background: #f3f4f6;
+      border-radius: 50%;
+    }
+
+    .ali-body {
+      padding: 20px;
+    }
+
+    .ali-message {
+      color: #3f4650;
+      font-size: 14px;
+      line-height: 1.75;
+      min-height: 70px;
+    }
+
+    .ali-context {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #eef0f2;
+      color: #9298a0;
+      font-size: 10px;
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    /* ------------------------------
+       RESPONSIVE
+    ------------------------------ */
+
+    @media (max-width: 1050px) {
+      .command-grid {
         grid-template-columns: 1fr;
+      }
+
+      .state-strip {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .route-options {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 780px) {
+      .app-shell {
+        display: block;
       }
 
       .sidebar {
-        position: fixed;
-        left: -280px;
-        width: 260px;
-        transition: left 220ms ease;
-        box-shadow: 12px 0 30px rgba(0,0,0,0.08);
+        width: min(290px, 86vw);
+        transform: translateX(-105%);
+        box-shadow: 20px 0 60px rgba(0,0,0,.08);
       }
 
-      .sidebar.open {
-        left: 0;
+      .sidebar.mobile-open {
+        transform: translateX(0);
       }
 
-      .mobile-menu-button {
-        display: inline-flex;
-        border: 0;
-        background: transparent;
-        font-size: 20px;
-        color: var(--navy);
+      .main {
+        margin-left: 0;
       }
 
-      .topbar {
-        padding: 0 18px;
-      }
-
-      .workspace-content {
-        padding: 36px 22px 60px;
-      }
-
-      .grid-3 {
-        grid-template-columns: 1fr;
-      }
-
-      .grid-2 {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 640px) {
-      .landing {
-        padding: 28px 18px;
-      }
-
-      .landing-actions {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .landing-actions .btn {
-        width: 100%;
-      }
-
-      .command-card {
-        padding: 30px 20px;
-      }
-
-      .ask-box {
-        flex-direction: column;
-      }
-
-      .workspace-content {
-        padding: 28px 16px 50px;
+      .mobile-menu-btn {
+        display: grid;
+        place-items: center;
       }
 
       .topbar {
-        height: 62px;
+        padding: 0 16px;
       }
 
       .connection {
         display: none;
       }
 
-      .ali-greeting h1 {
-        font-size: 34px;
+      .content {
+        padding: 30px 16px 70px;
       }
 
-      .learn-hero {
-        padding-top: 50px;
+      .hero-title {
+        font-size: clamp(46px, 15vw, 72px);
       }
 
-      .modal {
-        padding: 24px 20px;
+      .landing {
+        padding: 22px;
+      }
+
+      .landing-inner {
+        transform: none;
+      }
+
+      .state-strip {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .route-options {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .state-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-copy {
+        font-size: 14px;
+      }
+
+      .hero-actions {
+        flex-direction: column;
+      }
+
+      .hero-actions .btn {
+        width: min(280px, 100%);
+      }
+
+      .upload-card,
+      .ask-card {
+        min-height: auto;
+      }
+
+      .ali-panel {
+        right: 12px;
+        bottom: 12px;
+        width: calc(100vw - 24px);
+      }
+    }
+
+    /* collapsed desktop */
+    @media (min-width: 781px) {
+      .app-shell.sidebar-collapsed .sidebar {
+        width: 76px;
+      }
+
+      .app-shell.sidebar-collapsed .main {
+        margin-left: 76px;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar .brand-name,
+      .app-shell.sidebar-collapsed .nav-label,
+      .app-shell.sidebar-collapsed .nav-text,
+      .app-shell.sidebar-collapsed .user-meta {
+        display: none;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar-top {
+        justify-content: center;
+        padding: 0 10px;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar-top .collapse-btn {
+        position: absolute;
+        bottom: 14px;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar-brand {
+        display: block;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar-brand .brand {
+        gap: 0;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar-footer {
+        display: flex;
+        justify-content: center;
+      }
+
+      .app-shell.sidebar-collapsed .user-mini {
+        padding: 0;
+      }
+
+      .app-shell.sidebar-collapsed .nav-item {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
       }
     }
   </style>
@@ -962,185 +1200,269 @@
 
 <body>
 
-  <!-- ======================================
-       LANDING PAGE
-  ======================================= -->
+  <!-- =========================================================
+       LANDING
+  ========================================================== -->
 
-  <section id="landingPage" class="landing">
-    <div class="landing-content">
+  <section id="landingView" class="landing">
+    <div class="landing-inner">
 
-      <div class="sa-mark">
-        <div class="sa-core">SA</div>
+      <div class="brand">
+        <div class="brand-mark">
+          <span>SA</span>
+        </div>
+        <div class="brand-name">SPECIAL ALI</div>
       </div>
 
-      <h1>SPECIAL ALI</h1>
+      <h1 class="hero-title">SPECIAL ALI</h1>
 
-      <div class="landing-tagline">
+      <div class="hero-tagline">
         Financial Control without the noise.
       </div>
 
-      <div class="landing-actions">
+      <p class="hero-copy">
+        A financial control operating system that connects data,
+        accounting, taxation, investigation, evidence and decisions
+        into one controlled workspace.
+      </p>
+
+      <div class="hero-actions">
         <button
           class="btn btn-primary"
-          onclick="openAuth('signin')"
+          type="button"
+          onclick="showAuth('signup')"
+        >
+          Get Started
+        </button>
+
+        <button
+          class="btn btn-soft"
+          type="button"
+          onclick="showAuth('signin')"
         >
           Sign In
         </button>
-
-        <button
-          class="btn btn-secondary"
-          onclick="openAuth('signup')"
-        >
-          Create Account
-        </button>
-
-        <button
-          class="btn btn-ghost"
-          onclick="showLearnMore()"
-        >
-          Learn More →
-        </button>
       </div>
-
-      <div class="landing-poetry">
-        <strong>Numbers are only the beginning.</strong><br />
-        Behind every transaction is evidence.<br />
-        Behind every conclusion is validation.<br />
-        Behind every decision is authority.<br />
-        And behind every answer,
-        <strong>ALI shows you why.</strong>
-      </div>
-
-    </div>
-  </section>
-
-
-  <!-- ======================================
-       LEARN MORE
-  ======================================= -->
-
-  <section id="learnPage" class="learn-page hidden">
-
-    <div class="learn-inner">
 
       <button
-        class="back-button"
-        onclick="showLanding()"
+        class="learn-link"
+        type="button"
+        onclick="showLearnMore()"
       >
-        ← SPECIAL ALI
+        <strong>Learn more.</strong>
+        Control the numbers. Understand why. Keep the proof.
       </button>
 
-      <div class="learn-hero">
-
-        <div class="sa-mark">
-          <div class="sa-core">SA</div>
-        </div>
-
-        <h1>
-          Control the numbers.<br />
-          Understand the why.
-        </h1>
-
-        <div class="poem">
-          <strong>ALI does not guess.</strong><br />
-          It investigates.<br />
-          It traces.<br />
-          It reconciles.<br />
-          It validates.<br /><br />
-
-          A document becomes data.<br />
-          Data becomes evidence.<br />
-          Evidence becomes a controlled result.<br />
-          And a result becomes a decision<br />
-          only when the system can prove it.
-        </div>
-
-      </div>
-
-
-      <div class="feature">
-        <h3>Financial control, not another ERP.</h3>
-        <p>
-          SPECIAL ALI is designed as a financial control operating system.
-          Accounting, reconciliation, investigation, evidence, taxation,
-          validation and auditability work as connected control domains.
-        </p>
-      </div>
-
-      <div class="feature">
-        <h3>Every important number can answer: “Why?”</h3>
-        <p>
-          Results can be traced to their source, evidence, rule,
-          calculation, validation and execution history.
-          A number without sufficient proof does not silently become truth.
-        </p>
-      </div>
-
-      <div class="feature">
-        <h3>AI assists. The engine decides.</h3>
-        <p>
-          ALI can interpret requests, investigate patterns, form hypotheses,
-          explain results and propose actions. Authoritative state changes
-          remain controlled by backend rules, authorization, validation and
-          human gates where required.
-        </p>
-      </div>
-
-      <div class="feature">
-        <h3>Accounting and tax share evidence — not assumptions.</h3>
-        <p>
-          The same validated source can feed Accounting Core and Tax Core,
-          while each domain applies its own controlled interpretation,
-          rules and validation.
-        </p>
-      </div>
-
-      <div class="feature">
-        <h3>Incomplete but provable beats complete but unsupported.</h3>
-        <p>
-          When evidence, rules or validation are insufficient,
-          SPECIAL ALI can leave a case unresolved rather than fabricate
-          certainty.
-        </p>
-      </div>
-
     </div>
-
   </section>
 
 
-  <!-- ======================================
-       APPLICATION
-  ======================================= -->
+  <!-- =========================================================
+       LEARN MORE
+  ========================================================== -->
 
-  <section id="appPage" class="hidden">
+  <section id="learnView" class="landing hidden">
+    <div class="landing-inner">
 
-    <div class="app-shell">
+      <div class="brand">
+        <div class="brand-mark">
+          <span>SA</span>
+        </div>
+        <div class="brand-name">SPECIAL ALI</div>
+      </div>
 
-      <!-- SIDEBAR -->
+      <h1 class="hero-title" style="font-size:clamp(42px,7vw,76px)">
+        Financial control,<br />
+        with a reason.
+      </h1>
 
-      <aside id="sidebar" class="sidebar">
+      <p class="hero-copy" style="font-size:17px">
+        SPECIAL ALI does not treat a number as truth simply because
+        it exists in a spreadsheet.
+        Every important result should have a source, evidence,
+        rule, calculation, validation and trace.
+      </p>
 
-        <div class="sidebar-brand">
-          <div class="brand-small">
-            <div class="mini-mark"></div>
-            <span>SPECIAL ALI</span>
-          </div>
+      <p class="hero-copy">
+        ALI can reason, investigate, explain and orchestrate work.
+        The authoritative state remains in the controlled backend.
+      </p>
+
+      <div class="hero-actions">
+        <button
+          class="btn btn-primary"
+          type="button"
+          onclick="showAuth('signup')"
+        >
+          Get Started
+        </button>
+
+        <button
+          class="btn btn-link"
+          type="button"
+          onclick="showLanding()"
+        >
+          ← Back
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- =========================================================
+       AUTH
+  ========================================================== -->
+
+  <div id="authModal" class="modal-backdrop hidden">
+    <div class="modal">
+
+      <h3 id="authTitle">Welcome to SPECIAL ALI</h3>
+
+      <p id="authDescription">
+        Sign in to continue to your workspace.
+      </p>
+
+      <form id="authForm" style="margin-top:22px">
+
+        <div id="nameField" class="hidden">
+          <label class="eyebrow">Full name</label>
+          <input
+            id="authName"
+            type="text"
+            autocomplete="name"
+            style="
+              width:100%;
+              margin-top:8px;
+              border:1px solid #e5e7eb;
+              border-radius:12px;
+              padding:13px;
+              outline:none;
+            "
+          />
         </div>
 
+        <div style="margin-top:16px">
+          <label class="eyebrow">Email</label>
+          <input
+            id="authEmail"
+            type="email"
+            required
+            autocomplete="email"
+            style="
+              width:100%;
+              margin-top:8px;
+              border:1px solid #e5e7eb;
+              border-radius:12px;
+              padding:13px;
+              outline:none;
+            "
+          />
+        </div>
+
+        <div style="margin-top:16px">
+          <label class="eyebrow">Password</label>
+          <input
+            id="authPassword"
+            type="password"
+            required
+            autocomplete="current-password"
+            style="
+              width:100%;
+              margin-top:8px;
+              border:1px solid #e5e7eb;
+              border-radius:12px;
+              padding:13px;
+              outline:none;
+            "
+          />
+        </div>
+
+        <div
+          id="authError"
+          class="hidden"
+          style="
+            margin-top:13px;
+            color:#c93636;
+            font-size:12px;
+            line-height:1.5;
+          "
+        ></div>
+
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="btn btn-soft"
+            onclick="closeAuth()"
+          >
+            Cancel
+          </button>
+
+          <button
+            id="authSubmit"
+            type="submit"
+            class="btn btn-primary"
+          >
+            Continue
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+
+  <!-- =========================================================
+       APP
+  ========================================================== -->
+
+  <section id="appView" class="app-shell hidden">
+
+    <aside id="sidebar" class="sidebar">
+
+      <div class="sidebar-top">
+
+        <div class="sidebar-brand">
+          <button
+            class="brand"
+            type="button"
+            style="border:0;background:transparent;padding:0"
+            onclick="toggleALI(true)"
+            title="Open ALI"
+          >
+            <div class="brand-mark">
+              <span>SA</span>
+            </div>
+            <div class="brand-name">SPECIAL ALI</div>
+          </button>
+        </div>
+
+        <button
+          id="collapseBtn"
+          class="collapse-btn"
+          type="button"
+          onclick="toggleSidebar()"
+          title="Collapse sidebar"
+        >
+          ‹
+        </button>
+
+      </div>
+
+      <div class="sidebar-scroll">
 
         <!-- ALI -->
+        <div class="nav-section">
 
-        <div class="sidebar-section">
-          <div class="sidebar-label">ALI</div>
+          <div class="nav-label">ALI</div>
 
           <button
             class="nav-item"
-            data-route="command"
-            onclick="navigate('command')"
+            data-route="ali"
+            onclick="navigate('ali')"
           >
-            <span class="nav-icon">⌂</span>
-            Ask ALI
+            <span class="nav-icon">✦</span>
+            <span class="nav-text">Ask ALI</span>
           </button>
 
           <button
@@ -1148,17 +1470,17 @@
             data-route="tasks"
             onclick="navigate('tasks')"
           >
-            <span class="nav-icon">✓</span>
-            Tasks
+            <span class="nav-icon">◷</span>
+            <span class="nav-text">Tasks</span>
           </button>
 
           <button
             class="nav-item"
-            data-route="action"
-            onclick="navigate('action')"
+            data-route="action-center"
+            onclick="navigate('action-center')"
           >
             <span class="nav-icon">!</span>
-            Action Center
+            <span class="nav-text">Action Center</span>
           </button>
 
           <button
@@ -1166,24 +1488,25 @@
             data-route="activity"
             onclick="navigate('activity')"
           >
-            <span class="nav-icon">◷</span>
-            Activity
+            <span class="nav-icon">↺</span>
+            <span class="nav-text">Activity</span>
           </button>
+
         </div>
 
 
         <!-- WORK -->
+        <div class="nav-section">
 
-        <div class="sidebar-section">
-          <div class="sidebar-label">WORK</div>
+          <div class="nav-label">WORK</div>
 
           <button
             class="nav-item"
             data-route="work"
             onclick="navigate('work')"
           >
-            <span class="nav-icon">◌</span>
-            Work
+            <span class="nav-icon">⌘</span>
+            <span class="nav-text">Work</span>
           </button>
 
           <button
@@ -1192,7 +1515,7 @@
             onclick="navigate('investigation')"
           >
             <span class="nav-icon">⌕</span>
-            Investigation
+            <span class="nav-text">Investigation</span>
           </button>
 
           <button
@@ -1201,7 +1524,7 @@
             onclick="navigate('reconciliation')"
           >
             <span class="nav-icon">⇄</span>
-            Reconciliation
+            <span class="nav-text">Reconciliation</span>
           </button>
 
           <button
@@ -1209,8 +1532,8 @@
             data-route="findings"
             onclick="navigate('findings')"
           >
-            <span class="nav-icon">◇</span>
-            Findings
+            <span class="nav-icon">◉</span>
+            <span class="nav-text">Findings</span>
           </button>
 
           <button
@@ -1219,7 +1542,7 @@
             onclick="navigate('exceptions')"
           >
             <span class="nav-icon">△</span>
-            Exceptions
+            <span class="nav-text">Exceptions</span>
           </button>
 
           <button
@@ -1228,455 +1551,425 @@
             onclick="navigate('unresolved')"
           >
             <span class="nav-icon">?</span>
-            Unresolved
+            <span class="nav-text">Unresolved</span>
           </button>
+
         </div>
 
 
         <!-- ACCOUNTING -->
+        <div class="nav-section">
 
-        <div class="sidebar-section">
-          <div class="sidebar-label">ACCOUNTING</div>
+          <div class="nav-label">ACCOUNTING</div>
 
-          <button class="nav-item" onclick="navigate('accounting')">
-            <span class="nav-icon">▦</span>
-            Overview
+          <button class="nav-item" data-route="accounting-overview" onclick="navigate('accounting-overview')">
+            <span class="nav-icon">▦</span><span class="nav-text">Overview</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('transactions')">
-            <span class="nav-icon">≡</span>
-            Transactions
+          <button class="nav-item" data-route="transactions" onclick="navigate('transactions')">
+            <span class="nav-icon">≡</span><span class="nav-text">Transactions</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('journal')">
-            <span class="nav-icon">≣</span>
-            Journal
+          <button class="nav-item" data-route="journal" onclick="navigate('journal')">
+            <span class="nav-icon">J</span><span class="nav-text">Journal</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('ledger')">
-            <span class="nav-icon">▤</span>
-            Ledger
+          <button class="nav-item" data-route="ledger" onclick="navigate('ledger')">
+            <span class="nav-icon">L</span><span class="nav-text">Ledger</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('accounts')">
-            <span class="nav-icon">◉</span>
-            Accounts
+          <button class="nav-item" data-route="accounts" onclick="navigate('accounts')">
+            <span class="nav-icon">A</span><span class="nav-text">Accounts</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('receivables')">
-            <span class="nav-icon">→</span>
-            Receivables
+          <button class="nav-item" data-route="receivables" onclick="navigate('receivables')">
+            <span class="nav-icon">AR</span><span class="nav-text">Receivables</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('payables')">
-            <span class="nav-icon">←</span>
-            Payables
+          <button class="nav-item" data-route="payables" onclick="navigate('payables')">
+            <span class="nav-icon">AP</span><span class="nav-text">Payables</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('inventory')">
-            <span class="nav-icon">□</span>
-            Inventory
+          <button class="nav-item" data-route="inventory" onclick="navigate('inventory')">
+            <span class="nav-icon">IN</span><span class="nav-text">Inventory</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('fixed-assets')">
-            <span class="nav-icon">▣</span>
-            Fixed Assets
+          <button class="nav-item" data-route="fixed-assets" onclick="navigate('fixed-assets')">
+            <span class="nav-icon">FA</span><span class="nav-text">Fixed Assets</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('adjustments')">
-            <span class="nav-icon">±</span>
-            Adjustments
+          <button class="nav-item" data-route="adjustments" onclick="navigate('adjustments')">
+            <span class="nav-icon">±</span><span class="nav-text">Adjustments</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('close')">
-            <span class="nav-icon">◐</span>
-            Period Close
+          <button class="nav-item" data-route="period-close" onclick="navigate('period-close')">
+            <span class="nav-icon">✓</span><span class="nav-text">Period Close</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('financial-reports')">
-            <span class="nav-icon">▥</span>
-            Financial Reports
+          <button class="nav-item" data-route="financial-reports" onclick="navigate('financial-reports')">
+            <span class="nav-icon">▥</span><span class="nav-text">Financial Reports</span>
           </button>
+
         </div>
 
 
         <!-- TAX -->
+        <div class="nav-section">
 
-        <div class="sidebar-section">
-          <div class="sidebar-label">TAX</div>
+          <div class="nav-label">TAX</div>
 
-          <button class="nav-item" onclick="navigate('tax')">
-            <span class="nav-icon">%</span>
-            Tax Overview
+          <button class="nav-item" data-route="tax-overview" onclick="navigate('tax-overview')">
+            <span class="nav-icon">%</span><span class="nav-text">Tax Overview</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('tax-data')">
-            <span class="nav-icon">▧</span>
-            Tax Data
+          <button class="nav-item" data-route="tax-data" onclick="navigate('tax-data')">
+            <span class="nav-icon">TD</span><span class="nav-text">Tax Data</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('tax-calculations')">
-            <span class="nav-icon">∑</span>
-            Tax Calculations
+          <button class="nav-item" data-route="tax-calculations" onclick="navigate('tax-calculations')">
+            <span class="nav-icon">TC</span><span class="nav-text">Tax Calculations</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('tax-reconciliation')">
-            <span class="nav-icon">⇄</span>
-            Tax Reconciliation
+          <button class="nav-item" data-route="tax-reconciliation" onclick="navigate('tax-reconciliation')">
+            <span class="nav-icon">TR</span><span class="nav-text">Tax Reconciliation</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('tax-rules')">
-            <span class="nav-icon">§</span>
-            Tax Rules
+          <button class="nav-item" data-route="tax-rules" onclick="navigate('tax-rules')">
+            <span class="nav-icon">R</span><span class="nav-text">Tax Rules</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('tax-issues')">
-            <span class="nav-icon">!</span>
-            Tax Issues
+          <button class="nav-item" data-route="tax-issues" onclick="navigate('tax-issues')">
+            <span class="nav-icon">!</span><span class="nav-text">Tax Issues</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('tax-reports')">
-            <span class="nav-icon">▥</span>
-            Tax Reports / Export
+          <button class="nav-item" data-route="tax-reports" onclick="navigate('tax-reports')">
+            <span class="nav-icon">TX</span><span class="nav-text">Tax Reports / Export</span>
           </button>
+
         </div>
 
 
-        <!-- DATA -->
+        <!-- DATA CENTER -->
+        <div class="nav-section">
 
-        <div class="sidebar-section">
-          <div class="sidebar-label">DATA CENTER</div>
+          <div class="nav-label">DATA CENTER</div>
 
-          <button class="nav-item" onclick="navigate('data')">
-            <span class="nav-icon">⌁</span>
-            Overview
+          <button class="nav-item" data-route="data-overview" onclick="navigate('data-overview')">
+            <span class="nav-icon">◫</span><span class="nav-text">Overview</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('sources')">
-            <span class="nav-icon">◫</span>
-            Sources
+          <button class="nav-item" data-route="sources" onclick="navigate('sources')">
+            <span class="nav-icon">S</span><span class="nav-text">Sources</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('documents')">
-            <span class="nav-icon">□</span>
-            Documents
+          <button class="nav-item" data-route="documents" onclick="navigate('documents')">
+            <span class="nav-icon">□</span><span class="nav-text">Documents</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('upload')">
-            <span class="nav-icon">↑</span>
-            Upload
+          <button class="nav-item" data-route="ingestion" onclick="navigate('ingestion')">
+            <span class="nav-icon">↓</span><span class="nav-text">Ingestion</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('ocr')">
-            <span class="nav-icon">⌗</span>
-            OCR / Extraction
+          <button class="nav-item" data-route="ocr" onclick="navigate('ocr')">
+            <span class="nav-icon">OCR</span><span class="nav-text">OCR / Extraction</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('validation')">
-            <span class="nav-icon">✓</span>
-            Validation
+          <button class="nav-item" data-route="data-validation" onclick="navigate('data-validation')">
+            <span class="nav-icon">✓</span><span class="nav-text">Data Validation</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('duplicates')">
-            <span class="nav-icon">⊕</span>
-            Duplicates
+          <button class="nav-item" data-route="data-health" onclick="navigate('data-health')">
+            <span class="nav-icon">♥</span><span class="nav-text">Data Health</span>
           </button>
+
+          <button class="nav-item" data-route="duplicates" onclick="navigate('duplicates')">
+            <span class="nav-icon">≋</span><span class="nav-text">Duplicates</span>
+          </button>
+
+          <button class="nav-item" data-route="reset-data" onclick="navigate('reset-data')">
+            <span class="nav-icon">↻</span><span class="nav-text">Reset Data</span>
+          </button>
+
+          <button class="nav-item" data-route="delete-data" onclick="navigate('delete-data')">
+            <span class="nav-icon">⌫</span><span class="nav-text">Delete Data</span>
+          </button>
+
+          <button class="nav-item" data-route="refresh-audit" onclick="navigate('refresh-audit')">
+            <span class="nav-icon">⟳</span><span class="nav-text">Refresh Audit</span>
+          </button>
+
         </div>
 
 
         <!-- EVIDENCE -->
+        <div class="nav-section">
 
-        <div class="sidebar-section">
-          <div class="sidebar-label">EVIDENCE</div>
+          <div class="nav-label">EVIDENCE</div>
 
-          <button class="nav-item" onclick="navigate('evidence')">
-            <span class="nav-icon">◇</span>
-            Evidence Registry
+          <button class="nav-item" data-route="evidence-registry" onclick="navigate('evidence-registry')">
+            <span class="nav-icon">E</span><span class="nav-text">Evidence Registry</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('proof')">
-            <span class="nav-icon">✓</span>
-            Proof
+          <button class="nav-item" data-route="proof" onclick="navigate('proof')">
+            <span class="nav-icon">P</span><span class="nav-text">Proof</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('conflicts')">
-            <span class="nav-icon">⚠</span>
-            Conflicts
+          <button class="nav-item" data-route="conflicts" onclick="navigate('conflicts')">
+            <span class="nav-icon">!</span><span class="nav-text">Conflicts</span>
           </button>
+
         </div>
 
 
         <!-- HUMAN GATE -->
+        <div class="nav-section">
 
-        <div class="sidebar-section">
-          <div class="sidebar-label">HUMAN GATE</div>
+          <div class="nav-label">HUMAN GATE</div>
 
-          <button class="nav-item" onclick="navigate('approvals')">
-            <span class="nav-icon">◉</span>
-            Pending Approval
+          <button class="nav-item" data-route="pending-approval" onclick="navigate('pending-approval')">
+            <span class="nav-icon">○</span><span class="nav-text">Pending Approval</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('decisions')">
-            <span class="nav-icon">◆</span>
-            Decisions
+          <button class="nav-item" data-route="decisions" onclick="navigate('decisions')">
+            <span class="nav-icon">✓</span><span class="nav-text">Decisions</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('decision-history')">
-            <span class="nav-icon">◷</span>
-            Decision History
+          <button class="nav-item" data-route="decision-history" onclick="navigate('decision-history')">
+            <span class="nav-icon">↺</span><span class="nav-text">Decision History</span>
           </button>
+
         </div>
 
 
         <!-- REPORTS -->
+        <div class="nav-section">
 
-        <div class="sidebar-section">
-          <div class="sidebar-label">REPORTS</div>
+          <div class="nav-label">REPORTS</div>
 
-          <button class="nav-item" onclick="navigate('control-report')">
-            <span class="nav-icon">▥</span>
-            Control Report
+          <button class="nav-item" data-route="control-report" onclick="navigate('control-report')">
+            <span class="nav-icon">C</span><span class="nav-text">Control Report</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('accounting-report')">
-            <span class="nav-icon">▥</span>
-            Accounting Report
+          <button class="nav-item" data-route="accounting-report" onclick="navigate('accounting-report')">
+            <span class="nav-icon">A</span><span class="nav-text">Accounting Report</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('tax-report')">
-            <span class="nav-icon">▥</span>
-            Tax Report
+          <button class="nav-item" data-route="tax-report" onclick="navigate('tax-report')">
+            <span class="nav-icon">T</span><span class="nav-text">Tax Report</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('audit-report')">
-            <span class="nav-icon">▥</span>
-            Audit Report
+          <button class="nav-item" data-route="audit-report" onclick="navigate('audit-report')">
+            <span class="nav-icon">R</span><span class="nav-text">Audit Report</span>
           </button>
+
         </div>
 
 
         <!-- AUDIT -->
+        <div class="nav-section">
 
-        <div class="sidebar-section">
-          <div class="sidebar-label">AUDIT</div>
+          <div class="nav-label">AUDIT</div>
 
-          <button class="nav-item" onclick="navigate('execution-log')">
-            <span class="nav-icon">◷</span>
-            Execution Log
+          <button class="nav-item" data-route="execution-log" onclick="navigate('execution-log')">
+            <span class="nav-icon">EL</span><span class="nav-text">Execution Log</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('event-log')">
-            <span class="nav-icon">≡</span>
-            Event Log
+          <button class="nav-item" data-route="event-log" onclick="navigate('event-log')">
+            <span class="nav-icon">EV</span><span class="nav-text">Event Log</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('audit-trail')">
-            <span class="nav-icon">⌁</span>
-            Audit Trail
+          <button class="nav-item" data-route="audit-trail" onclick="navigate('audit-trail')">
+            <span class="nav-icon">AT</span><span class="nav-text">Audit Trail</span>
           </button>
+
         </div>
 
 
         <!-- SETTINGS -->
+        <div class="nav-section">
 
-        <div class="sidebar-section">
-          <div class="sidebar-label">SETTINGS</div>
+          <div class="nav-label">SETTINGS</div>
 
-          <button class="nav-item" onclick="navigate('account')">
-            <span class="nav-icon">●</span>
-            Account
+          <button class="nav-item" data-route="account" onclick="navigate('account')">
+            <span class="nav-icon">AC</span><span class="nav-text">Account</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('workspace-settings')">
-            <span class="nav-icon">□</span>
-            Workspace
+          <button class="nav-item" data-route="workspace" onclick="navigate('workspace')">
+            <span class="nav-icon">W</span><span class="nav-text">Workspace</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('members')">
-            <span class="nav-icon">◎</span>
-            Members & Roles
+          <button class="nav-item" data-route="members" onclick="navigate('members')">
+            <span class="nav-icon">M</span><span class="nav-text">Members & Roles</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('integrations')">
-            <span class="nav-icon">⌘</span>
-            Integrations
+          <button class="nav-item" data-route="permissions" onclick="navigate('permissions')">
+            <span class="nav-icon">K</span><span class="nav-text">Permissions</span>
           </button>
 
-          <button class="nav-item" onclick="navigate('preferences')">
-            <span class="nav-icon">⚙</span>
-            Preferences
+          <button class="nav-item" data-route="accounting-settings" onclick="navigate('accounting-settings')">
+            <span class="nav-icon">A</span><span class="nav-text">Accounting</span>
+          </button>
+
+          <button class="nav-item" data-route="tax-settings" onclick="navigate('tax-settings')">
+            <span class="nav-icon">T</span><span class="nav-text">Tax</span>
+          </button>
+
+          <button class="nav-item" data-route="integrations" onclick="navigate('integrations')">
+            <span class="nav-icon">↔</span><span class="nav-text">Integrations</span>
+          </button>
+
+          <button class="nav-item" data-route="preferences" onclick="navigate('preferences')">
+            <span class="nav-icon">⚙</span><span class="nav-text">Preferences</span>
           </button>
 
         </div>
 
-      </aside>
+      </div>
 
 
-      <!-- MAIN -->
+      <div class="sidebar-footer">
 
-      <main class="main">
+        <button
+          class="user-mini"
+          style="width:100%;border:0;background:transparent;text-align:left"
+          onclick="navigate('account')"
+        >
+          <div id="sidebarAvatar" class="avatar">U</div>
 
-        <header class="topbar">
+          <div class="user-meta">
+            <div id="sidebarUserName" class="user-name">User</div>
+            <div id="sidebarUserRole" class="user-role">Member</div>
+          </div>
+        </button>
+
+      </div>
+
+    </aside>
+
+
+    <div
+      id="drawerOverlay"
+      class="drawer-overlay"
+      onclick="closeMobileSidebar()"
+    ></div>
+
+
+    <main class="main">
+
+      <header class="topbar">
+
+        <div class="topbar-left">
 
           <button
-            class="mobile-menu-button"
-            onclick="toggleSidebar()"
+            class="mobile-menu-btn"
+            type="button"
+            onclick="toggleMobileSidebar()"
+            aria-label="Open navigation"
           >
             ☰
           </button>
 
-          <div class="connection">
+          <div id="topbarTitle" class="topbar-title">
+            ALI Command Center
+          </div>
+
+        </div>
+
+        <div class="topbar-right">
+
+          <div id="connection" class="connection">
             <span class="connection-dot"></span>
-            SPECIAL ALI
+            <span id="connectionText">Checking connection</span>
           </div>
 
-          <div class="flex items-center gap-3">
+          <button
+            class="account-btn"
+            type="button"
+            onclick="navigate('account')"
+          >
+            <div id="topAvatar" class="avatar">U</div>
+            <span id="topUserName" style="font-size:12px;font-weight:600">
+              User
+            </span>
+          </button>
 
-            <button
-              class="btn btn-ghost"
-              onclick="navigate('account')"
-            >
-              <span id="userNameTop">Account</span>
-            </button>
+        </div>
 
-            <button
-              class="btn btn-secondary"
-              onclick="logout()"
-              style="min-height:38px;padding:0 13px;font-size:12px;"
-            >
-              Sign out
-            </button>
-
-          </div>
-
-        </header>
+      </header>
 
 
-        <div id="workspaceContent" class="workspace-content"></div>
+      <div id="content" class="content"></div>
 
-      </main>
-
-    </div>
+    </main>
 
   </section>
 
 
-  <!-- ======================================
-       AUTH MODAL
-  ======================================= -->
+  <!-- =========================================================
+       ALI PANEL
+  ========================================================== -->
 
-  <div
-    id="authModal"
-    class="modal-backdrop hidden"
-  >
+  <div id="aliPanel" class="ali-panel hidden">
+
+    <div class="ali-head">
+
+      <div class="ali-title">
+        <span class="ali-dot"></span>
+        ALI
+      </div>
+
+      <button
+        class="ali-close"
+        type="button"
+        onclick="toggleALI(false)"
+        aria-label="Hide ALI"
+      >
+        ×
+      </button>
+
+    </div>
+
+    <div class="ali-body">
+
+      <div id="aliMessage" class="ali-message"></div>
+
+      <div id="aliContext" class="ali-context"></div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =========================================================
+       CONFIRMATION MODAL
+  ========================================================== -->
+
+  <div id="confirmModal" class="modal-backdrop hidden">
 
     <div class="modal">
 
-      <div class="modal-header">
+      <h3 id="confirmTitle">Confirm action</h3>
 
-        <div class="brand-small">
-          <div class="mini-mark"></div>
-          <span>SPECIAL ALI</span>
-        </div>
+      <p id="confirmMessage">
+        Please confirm this action.
+      </p>
 
-        <h2 id="authTitle" class="mt-6">
-          Sign in
-        </h2>
-
-        <p id="authSubtitle">
-          Welcome back. Your workspace is waiting.
-        </p>
-
-      </div>
-
-
-      <form onsubmit="handleAuth(event)">
-
-        <div
-          id="nameGroup"
-          class="form-group hidden"
-        >
-          <label class="form-label">
-            Full Name
-          </label>
-
-          <input
-            id="authName"
-            class="input"
-            type="text"
-            placeholder="Your name"
-          />
-        </div>
-
-
-        <div class="form-group">
-
-          <label class="form-label">
-            Email
-          </label>
-
-          <input
-            id="authEmail"
-            class="input"
-            type="email"
-            placeholder="you@company.com"
-            required
-          />
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label class="form-label">
-            Password
-          </label>
-
-          <input
-            id="authPassword"
-            class="input"
-            type="password"
-            placeholder="••••••••"
-            minlength="6"
-            required
-          />
-
-        </div>
-
+      <div class="modal-actions">
 
         <button
-          id="authSubmit"
-          class="btn btn-primary w-full"
-          type="submit"
-        >
-          Sign In
-        </button>
-
-      </form>
-
-
-      <div class="auth-switch">
-
-        <span id="authSwitchText">
-          Don't have an account?
-        </span>
-
-        <button onclick="toggleAuthMode()">
-          <span id="authSwitchButton">
-            Create Account
-          </span>
-        </button>
-
-      </div>
-
-
-      <div class="text-center mt-5">
-
-        <button
-          class="btn btn-ghost"
-          onclick="closeAuth()"
+          class="btn btn-soft"
+          type="button"
+          onclick="closeConfirm()"
         >
           Cancel
+        </button>
+
+        <button
+          id="confirmActionBtn"
+          class="btn btn-danger"
+          type="button"
+        >
+          Confirm
         </button>
 
       </div>
@@ -1685,35 +1978,37 @@
 
   </div>
 
-
-  <!-- ======================================
-       TOAST
-  ======================================= -->
-
-  <div
-    id="toast"
-    class="fixed bottom-5 right-5 z-[200] hidden"
-  >
-    <div
-      id="toastText"
-      class="bg-white border border-slate-200 shadow-xl rounded-xl px-4 py-3 text-sm text-slate-700"
-    ></div>
-  </div>
-
-
-  <!-- FILE INPUT -->
 
   <input
     id="fileInput"
     type="file"
     multiple
-    class="hidden"
-    accept=".pdf,.jpg,.jpeg,.png,.webp,.tiff,.bmp,.xlsx,.xls,.csv,.ods,.docx,.doc,.txt,.rtf,.md,.json,.xml"
-    onchange="handleFiles(this.files)"
+    hidden
+    accept="
+      .pdf,
+      .jpg,
+      .jpeg,
+      .png,
+      .webp,
+      .tiff,
+      .bmp,
+      .xlsx,
+      .xls,
+      .csv,
+      .ods,
+      .docx,
+      .doc,
+      .txt,
+      .rtf,
+      .md,
+      .json,
+      .xml
+    "
   />
 
+  <div id="toastContainer" class="toast-container"></div>
 
-  <script src="app.js"></script>
+  <script src="./app.js"></script>
 
 </body>
 </html>
