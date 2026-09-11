@@ -8,10 +8,6 @@ import type {
   RequestIdentity
 } from "./types.js";
 
-export interface AuthorizedRequest {
-  authorization: AuthorizationContext;
-}
-
 const WORKSPACE_ROLES = [
   "OWNER",
   "ADMIN",
@@ -21,6 +17,12 @@ const WORKSPACE_ROLES = [
   "ANALYST",
   "VIEWER"
 ] as const;
+
+type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
+
+export interface AuthorizedRequest {
+  authorization: AuthorizationContext;
+}
 
 function getBearerToken(req: VercelRequest): string {
   const header = req.headers.authorization;
@@ -47,9 +49,9 @@ function getBearerToken(req: VercelRequest): string {
 }
 
 function getWorkspaceId(req: VercelRequest): string {
-  const workspaceId = req.headers["x-workspace-id"];
+  const value = req.headers["x-workspace-id"];
 
-  if (typeof workspaceId !== "string" || workspaceId.length === 0) {
+  if (typeof value !== "string" || value.length === 0) {
     throw new HttpError(
       400,
       "WORKSPACE_REQUIRED",
@@ -57,7 +59,11 @@ function getWorkspaceId(req: VercelRequest): string {
     );
   }
 
-  return workspaceId;
+  return value;
+}
+
+function isWorkspaceRole(value: string): value is WorkspaceRole {
+  return WORKSPACE_ROLES.includes(value as WorkspaceRole);
 }
 
 export async function authorizeRequest(
@@ -126,7 +132,7 @@ export async function authorizeRequest(
     );
   }
 
-  if (!WORKSPACE_ROLES.includes(membership.role)) {
+  if (!isWorkspaceRole(membership.role)) {
     throw new HttpError(
       403,
       "ROLE_NOT_AUTHORIZED",
@@ -156,4 +162,4 @@ export async function authorizeRequest(
   return {
     authorization
   };
-    }
+}
