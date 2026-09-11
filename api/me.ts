@@ -42,16 +42,14 @@ export default async function handler(
 
   try {
     /*
+     * =========================================================
      * BOOTSTRAP AUTHENTICATION
      *
-     * /me is intentionally NOT workspace-authorized.
+     * /me TIDAK membutuhkan X-Workspace-Id.
      *
-     * At this point the frontend may know the authenticated
-     * user but not yet know which workspace must be sent in
-     * X-Workspace-Id.
-     *
-     * Therefore this endpoint establishes the initial
-     * authenticated workspace context.
+     * Karena /me justru bertugas menemukan workspace
+     * pertama untuk authenticated user.
+     * =========================================================
      */
 
     const authorizationHeader =
@@ -96,10 +94,9 @@ export default async function handler(
 
 
     /*
+     * =========================================================
      * SUPABASE AUTH
-     *
-     * Supabase Auth is the authoritative
-     * identity source.
+     * =========================================================
      */
 
     const {
@@ -126,12 +123,9 @@ export default async function handler(
 
 
     /*
-     * WORKSPACE MEMBERSHIP
-     *
-     * Discover an active workspace from
-     * the authenticated user.
-     *
-     * No X-Workspace-Id is required here.
+     * =========================================================
+     * FIND ACTIVE WORKSPACE MEMBERSHIPS
+     * =========================================================
      */
 
     const {
@@ -159,6 +153,7 @@ export default async function handler(
         );
 
     if (membershipError) {
+
       console.error(
         "/api/me membership lookup failed",
         membershipError
@@ -186,11 +181,9 @@ export default async function handler(
 
 
     /*
+     * =========================================================
      * SELECT ACTIVE AUTHORIZED WORKSPACE
-     *
-     * We do not assume a profile column or
-     * default-workspace column that has not
-     * been verified.
+     * =========================================================
      */
 
     let selectedWorkspace: {
@@ -230,7 +223,9 @@ export default async function handler(
           )
           .maybeSingle();
 
+
       if (workspaceError) {
+
         console.error(
           "/api/me workspace lookup failed",
           workspaceError
@@ -244,12 +239,14 @@ export default async function handler(
         );
       }
 
+
       if (
         !workspace ||
         !workspace.is_active
       ) {
         continue;
       }
+
 
       if (
         !ALLOWED_ROLES.has(
@@ -258,6 +255,7 @@ export default async function handler(
       ) {
         continue;
       }
+
 
       selectedWorkspace =
         workspace;
@@ -273,6 +271,7 @@ export default async function handler(
       !selectedWorkspace ||
       !selectedMembership
     ) {
+
       return sendError(
         res,
         403,
@@ -283,57 +282,110 @@ export default async function handler(
 
 
     /*
-     * BOOTSTRAP RESPONSE
+     * =========================================================
+     * BOOTSTRAP CONTRACT
      *
-     * Frontend can now store workspace.id
-     * and send X-Workspace-Id on all
-     * subsequent protected requests.
+     * app.js saat ini membaca:
+     *
+     * result.user
+     * result.profile
+     * result.workspace
+     * result.membership
+     * result.authorization
+     *
+     * Karena itu workspace HARUS tersedia di level teratas.
+     *
+     * data.* tetap dipertahankan untuk kompatibilitas.
+     * =========================================================
+     */
+
+    const bootstrapData = {
+
+      user: {
+        id:
+          user.id,
+
+        email:
+          user.email ?? null
+      },
+
+
+      workspace:
+        selectedWorkspace,
+
+
+      membership: {
+
+        workspace_id:
+          selectedMembership.workspace_id,
+
+        role:
+          selectedMembership.role,
+
+        is_active:
+          selectedMembership.is_active
+      },
+
+
+      authorization: {
+
+        tenantId:
+          selectedWorkspace.tenant_id,
+
+        workspaceId:
+          selectedWorkspace.id,
+
+        userId:
+          user.id,
+
+        roles: [
+          selectedMembership.role
+        ],
+
+        permissions: []
+      }
+
+    };
+
+
+    /*
+     * =========================================================
+     * RETURN AUTHENTICATED BOOTSTRAP CONTEXT
+     * =========================================================
      */
 
     return res.status(200).json({
 
       ok: true,
 
-      data: {
 
-        user: {
-          id: user.id,
-          email:
-            user.email ?? null
-        },
+      /*
+       * FRONTEND CONTRACT
+       */
 
-        workspace:
-          selectedWorkspace,
+      user:
+        bootstrapData.user,
 
-        membership: {
-          workspace_id:
-            selectedMembership.workspace_id,
+      profile:
+        null,
 
-          role:
-            selectedMembership.role,
+      workspace:
+        bootstrapData.workspace,
 
-          is_active:
-            selectedMembership.is_active
-        },
+      membership:
+        bootstrapData.membership,
 
-        authorization: {
+      authorization:
+        bootstrapData.authorization,
 
-          tenantId:
-            selectedWorkspace.tenant_id,
 
-          workspaceId:
-            selectedWorkspace.id,
+      /*
+       * BACKWARD COMPATIBILITY
+       */
 
-          userId:
-            user.id,
+      data:
+        bootstrapData
 
-          roles: [
-            selectedMembership.role
-          ],
-
-          permissions: []
-        }
-      }
     });
 
   } catch (error: any) {
