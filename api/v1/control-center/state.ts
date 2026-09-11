@@ -1,7 +1,30 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { authorizeRequest } from "../../../core/authorization/middleware.js";
-import { supabaseAdmin } from "../../../infrastructure/supabase/client.js";
-import { errorResponse, HttpError } from "../../../shared/errors/http.js";
+import type {
+  VercelRequest,
+  VercelResponse
+} from "@vercel/node";
+
+import {
+  authorizeRequest
+} from "../../../core/authorization/middleware.js";
+
+import {
+  supabaseAdmin
+} from "../../../infrastructure/supabase/client.js";
+
+import {
+  errorResponse,
+  HttpError
+} from "../../../shared/errors/http.js";
+
+
+/* ============================================================
+   CONTROL CENTER API
+   INPUT VALIDATION
+============================================================ */
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 
 function optionalUuid(
   value: unknown,
@@ -17,22 +40,32 @@ function optionalUuid(
   }
 
   if (
-    typeof value !== "string"
+    typeof value !== "string" ||
+    !UUID_PATTERN.test(value)
   ) {
     throw new HttpError(
       400,
       "INVALID_FIELD",
-      `${field} must be a UUID string`
+      `${field} must be a valid UUID string`
     );
   }
 
   return value;
 }
 
+
+/* ============================================================
+   HANDLER
+============================================================ */
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+
+  /* ----------------------------------------------------------
+     METHOD
+  ---------------------------------------------------------- */
 
   if (
     req.method !== "GET"
@@ -45,14 +78,25 @@ export default async function handler(
 
   }
 
+
   try {
+
+    /* --------------------------------------------------------
+       AUTHORIZATION
+    -------------------------------------------------------- */
 
     const {
       authorization
     } = await authorizeRequest(req);
 
+
     const workspaceId =
       authorization.identity.workspaceId;
+
+
+    /* --------------------------------------------------------
+       QUERY VALIDATION
+    -------------------------------------------------------- */
 
     const caseId =
       optionalUuid(
@@ -60,11 +104,17 @@ export default async function handler(
         "case_id"
       );
 
+
     const transactionId =
       optionalUuid(
         req.query.transaction_id,
         "transaction_id"
       );
+
+
+    /* --------------------------------------------------------
+       AUTHORITATIVE DATABASE STATE
+    -------------------------------------------------------- */
 
     const {
       data,
@@ -84,6 +134,11 @@ export default async function handler(
         }
       );
 
+
+    /* --------------------------------------------------------
+       DATABASE ERROR
+    -------------------------------------------------------- */
+
     if (error) {
 
       throw new HttpError(
@@ -93,6 +148,21 @@ export default async function handler(
       );
 
     }
+
+
+    /* --------------------------------------------------------
+       RESPONSE NORMALIZATION
+    -------------------------------------------------------- */
+
+    const state =
+      Array.isArray(data)
+        ? data
+        : [];
+
+
+    /* --------------------------------------------------------
+       AUTHORITATIVE RESPONSE
+    -------------------------------------------------------- */
 
     return res.status(200).json({
 
@@ -107,20 +177,19 @@ export default async function handler(
       transaction_id:
         transactionId,
 
-      state:
-        Array.isArray(data)
-          ? data
-          : [],
+      state,
 
       source:
         "CONTROL_CENTER_STATE_API"
 
     });
 
+
   } catch (error) {
 
     const response =
       errorResponse(error);
+
 
     return res.status(
       response.statusCode
