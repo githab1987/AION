@@ -22,7 +22,10 @@ const ALLOWED_ROLES = new Set([
   "VIEWER"
 ]);
 
-function getHeader(req: VercelRequest, name: string): string | undefined {
+function getHeader(
+  req: VercelRequest,
+  name: string
+): string | undefined {
   const value = req.headers[name.toLowerCase()];
 
   if (Array.isArray(value)) {
@@ -32,7 +35,7 @@ function getHeader(req: VercelRequest, name: string): string | undefined {
   return value;
 }
 
-function getStatus(error: unknown): number | undefined {
+function getErrorStatus(error: unknown): number | undefined {
   if (!error || typeof error !== "object") {
     return undefined;
   }
@@ -53,35 +56,26 @@ function getStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-function getErrorCode(error: unknown): string | undefined {
-  if (!error || typeof error !== "object") {
-    return undefined;
-  }
-
-  const candidate = error as {
-    code?: unknown;
-  };
-
-  return typeof candidate.code === "string" ? candidate.code : undefined;
-}
-
-function createSyntheticRequest(
+function syntheticRequest(
   authorization?: string,
   workspaceId?: string
 ): VercelRequest {
+  const headers: Record<string, string> = {};
+
+  if (authorization !== undefined) {
+    headers.authorization = authorization;
+  }
+
+  if (workspaceId !== undefined) {
+    headers["x-workspace-id"] = workspaceId;
+  }
+
   return {
-    headers: {
-      ...(authorization !== undefined
-        ? { authorization }
-        : {}),
-      ...(workspaceId !== undefined
-        ? { "x-workspace-id": workspaceId }
-        : {})
-    }
+    headers
   } as VercelRequest;
 }
 
-async function expectAuthorizationFailure(
+async function expectDenied(
   id: string,
   req: VercelRequest,
   expectedStatus: number
@@ -91,19 +85,25 @@ async function expectAuthorizationFailure(
 
     return {
       id,
-      expected: `${expectedStatus}`,
-      actual: "200",
+      expected: String(expectedStatus),
+      actual: "AUTHORIZED",
       status: "FAIL",
       note: "Request was unexpectedly authorized."
     };
   } catch (error) {
-    const actualStatus = getStatus(error);
+    const actualStatus = getErrorStatus(error);
 
     return {
       id,
-      expected: `${expectedStatus}`,
-      actual: actualStatus ? `${actualStatus}` : "UNKNOWN",
-      status: actualStatus === expectedStatus ? "PASS" : "FAIL"
+      expected: String(expectedStatus),
+      actual:
+        actualStatus !== undefined
+          ? String(actualStatus)
+          : "UNKNOWN",
+      status:
+        actualStatus === expectedStatus
+          ? "PASS"
+          : "FAIL"
     };
   }
 }
@@ -120,11 +120,16 @@ export default async function handler(
   }
 
   /*
-   * Bootstrap authorization.
+   * Bootstrap:
    *
-   * The incoming request must already be authenticated.
-   * The access token is used only inside the server process.
-   * It is never returned, logged, persisted, or included in test results.
+   * The caller must already be authenticated and authorized.
+   * The access token is used only inside this server process.
+   *
+   * The token is NEVER:
+   * - returned
+   * - logged
+   * - stored
+   * - included in test results
    */
   let current;
 
@@ -134,14 +139,24 @@ export default async function handler(
     return res.status(401).json({
       ok: false,
       error: "AUTHENTICATION_REQUIRED",
-      message: "A valid authenticated session is required to run P2 tests."
+      message:
+        "A valid authenticated session is required to run P2 tests."
     });
   }
 
-  const token = getHeader(req, "authorization");
-  const workspaceId = getHeader(req, "x-workspace-id");
+  const authorization = current.authorization;
 
-  if (!token || !workspaceId) {
+  const userId = authorization.identity.userId;
+  const workspaceId = authorization.identity.workspaceId;
+  const role = authorization.roles[0] ?? null;
+
+  const token = getHeader(req, "authorization");
+  const incomingWorkspaceId = getHeader(
+    req,
+    "x-workspace-id"
+  );
+
+  if (!token || !incomingWorkspaceId) {
     return res.status(400).json({
       ok: false,
       error: "P2_BOOTSTRAP_HEADERS_MISSING"
@@ -152,35 +167,44 @@ export default async function handler(
 
   /*
    * AUTH-001
-   * No Authorization header -> 401
+   * No Authorization header
    */
   results.push(
-    await expectAuthorizationFailure(
+    await expectDenied(
       "AUTH-001",
-      createSyntheticRequest(undefined, workspaceId),
+      syntheticRequest(
+        undefined,
+        workspaceId
+      ),
       401
     )
   );
 
   /*
    * AUTH-002
-   * Malformed Authorization header -> 401
+   * Malformed Authorization header
    */
   results.push(
-    await expectAuthorizationFailure(
+    await expectDenied(
       "AUTH-002",
-      createSyntheticRequest("NotBearerToken", workspaceId),
+      syntheticRequest(
+        "NotBearerToken",
+        workspaceId
+      ),
       401
     )
   );
 
   /*
    * AUTH-003
-   * Valid token + valid workspace -> continue
+   * Valid authentication + valid workspace
    */
   try {
-    const authorized = await authorizeRequest(
-      createSyntheticRequest(token, workspaceId)
+    await authorizeRequest(
+      syntheticRequest(
+        token,
+        workspaceId
+      )
     );
 
     results.push({
@@ -188,31 +212,12 @@ export default async function handler(
       expected: "AUTHORIZED",
       actual: "AUTHORIZED",
       status: "PASS",
-      note: "Authenticated request continued through authorization middleware."
-    });
-
-    /*
-     * AUTH-011
-     * Current valid workspace/member -> PASS
-     */
-    results.push({
-      id: "AUTH-011",
-      expected: "AUTHORIZED",
-      actual: authorized.authorization?.roles?.[0]
-        ? `AUTHORIZED:${authorized.authorization.roles[0]}`
-        : "AUTHORIZED",
-      status: "PASS"
+      note:
+        "Authenticated request continued through authorization middleware."
     });
   } catch {
     results.push({
       id: "AUTH-003",
-      expected: "AUTHORIZED",
-      actual: "DENIED",
-      status: "FAIL"
-    });
-
-    results.push({
-      id: "AUTH-011",
       expected: "AUTHORIZED",
       actual: "DENIED",
       status: "FAIL"
@@ -221,95 +226,148 @@ export default async function handler(
 
   /*
    * AUTH-004
-   * No workspace header -> 400
+   * No workspace header
    */
   results.push(
-    await expectAuthorizationFailure(
+    await expectDenied(
       "AUTH-004",
-      createSyntheticRequest(token),
+      syntheticRequest(token),
       400
     )
   );
 
   /*
    * AUTH-005
-   * Invalid workspace UUID -> 400
+   * Invalid workspace UUID
    */
   results.push(
-    await expectAuthorizationFailure(
+    await expectDenied(
       "AUTH-005",
-      createSyntheticRequest(token, "not-a-uuid"),
+      syntheticRequest(
+        token,
+        "not-a-uuid"
+      ),
       400
     )
   );
 
   /*
    * AUTH-006
-   * Valid UUID but nonexistent workspace -> 404
+   * Valid UUID but nonexistent workspace
    */
   const nonexistentWorkspace =
     "00000000-0000-0000-0000-000000000000";
 
   results.push(
-    await expectAuthorizationFailure(
+    await expectDenied(
       "AUTH-006",
-      createSyntheticRequest(token, nonexistentWorkspace),
+      syntheticRequest(
+        token,
+        nonexistentWorkspace
+      ),
       404
     )
   );
 
   /*
-   * Discover safe fixtures without mutating production data.
+   * Safe fixture discovery.
+   *
+   * Nothing is inserted, updated, deleted, or mutated.
    */
-  let activeOtherWorkspaceId: string | undefined;
-  let inactiveWorkspaceId: string | undefined;
-  let inactiveMembershipWorkspaceId: string | undefined;
+  let inactiveWorkspaceId:
+    | string
+    | undefined;
+
+  let nonMemberWorkspaceId:
+    | string
+    | undefined;
+
+  let inactiveMembershipWorkspaceId:
+    | string
+    | undefined;
 
   try {
-    const { data: activeWorkspaces } = await supabaseAdmin
-      .from("workspaces")
-      .select("id")
-      .eq("is_active", true)
-      .neq("id", workspaceId)
-      .limit(20);
-
-    const candidateIds = (activeWorkspaces ?? [])
-      .map((row) => row.id)
-      .filter((id): id is string => typeof id === "string");
-
-    if (candidateIds.length > 0) {
-      const { data: memberships } = await supabaseAdmin
-        .from("workspace_members")
-        .select("workspace_id")
-        .eq("user_id", current.user.id)
-        .eq("is_active", true)
-        .in("workspace_id", candidateIds);
-
-      const memberIds = new Set(
-        (memberships ?? [])
-          .map((row) => row.workspace_id)
-          .filter(
-            (id): id is string => typeof id === "string"
-          )
-      );
-
-      activeOtherWorkspaceId = candidateIds.find(
-        (id) => !memberIds.has(id)
-      );
-    }
-
-    const { data: inactiveWorkspaces } = await supabaseAdmin
+    /*
+     * Find an inactive workspace.
+     */
+    const {
+      data: inactiveWorkspaces
+    } = await supabaseAdmin
       .from("workspaces")
       .select("id")
       .eq("is_active", false)
       .limit(1);
 
-    inactiveWorkspaceId = inactiveWorkspaces?.[0]?.id;
+    inactiveWorkspaceId =
+      inactiveWorkspaces?.[0]?.id;
 
-    const { data: inactiveMemberships } = await supabaseAdmin
+    /*
+     * Find active workspaces other than current workspace.
+     */
+    const {
+      data: activeWorkspaces
+    } = await supabaseAdmin
+      .from("workspaces")
+      .select("id")
+      .eq("is_active", true)
+      .neq("id", workspaceId)
+      .limit(50);
+
+    const candidateWorkspaceIds =
+      (activeWorkspaces ?? [])
+        .map((row) => row.id)
+        .filter(
+          (id): id is string =>
+            typeof id === "string"
+        );
+
+    /*
+     * Find current user's active memberships.
+     */
+    const {
+      data: activeMemberships
+    } = await supabaseAdmin
       .from("workspace_members")
       .select("workspace_id")
-      .eq("user_id", current.user.id)
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .in(
+        "workspace_id",
+        candidateWorkspaceIds.length > 0
+          ? candidateWorkspaceIds
+          : ["00000000-0000-0000-0000-000000000000"]
+      );
+
+    const memberWorkspaceIds =
+      new Set(
+        (activeMemberships ?? [])
+          .map(
+            (row) => row.workspace_id
+          )
+          .filter(
+            (id): id is string =>
+              typeof id === "string"
+          )
+      );
+
+    /*
+     * Active workspace where user is NOT a member.
+     */
+    nonMemberWorkspaceId =
+      candidateWorkspaceIds.find(
+        (id) =>
+          !memberWorkspaceIds.has(id)
+      );
+
+    /*
+     * Find inactive membership for this user.
+     */
+    const {
+      data: inactiveMemberships
+    } = await supabaseAdmin
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("user_id", userId)
       .eq("is_active", false)
       .limit(1);
 
@@ -317,20 +375,23 @@ export default async function handler(
       inactiveMemberships?.[0]?.workspace_id;
   } catch {
     /*
-     * Fixture discovery failure does not expose database errors.
-     * Tests depending on fixtures will remain SKIPPED.
+     * Fixture discovery failure is intentionally silent.
+     * No database error is exposed to the client.
      */
   }
 
   /*
    * AUTH-007
-   * Inactive workspace -> 403
+   * Inactive workspace
    */
   if (inactiveWorkspaceId) {
     results.push(
-      await expectAuthorizationFailure(
+      await expectDenied(
         "AUTH-007",
-        createSyntheticRequest(token, inactiveWorkspaceId),
+        syntheticRequest(
+          token,
+          inactiveWorkspaceId
+        ),
         403
       )
     );
@@ -340,19 +401,23 @@ export default async function handler(
       expected: "403",
       actual: "NO_FIXTURE",
       status: "SKIPPED",
-      note: "No inactive workspace fixture is available."
+      note:
+        "No inactive workspace fixture is available."
     });
   }
 
   /*
    * AUTH-008
-   * Active workspace where current user is not a member -> 403
+   * Active workspace where current user is not a member
    */
-  if (activeOtherWorkspaceId) {
+  if (nonMemberWorkspaceId) {
     results.push(
-      await expectAuthorizationFailure(
+      await expectDenied(
         "AUTH-008",
-        createSyntheticRequest(token, activeOtherWorkspaceId),
+        syntheticRequest(
+          token,
+          nonMemberWorkspaceId
+        ),
         403
       )
     );
@@ -362,19 +427,20 @@ export default async function handler(
       expected: "403",
       actual: "NO_FIXTURE",
       status: "SKIPPED",
-      note: "No active non-member workspace fixture is available."
+      note:
+        "No active non-member workspace fixture is available."
     });
   }
 
   /*
    * AUTH-009
-   * Current user has inactive membership -> 403
+   * Inactive membership
    */
   if (inactiveMembershipWorkspaceId) {
     results.push(
-      await expectAuthorizationFailure(
+      await expectDenied(
         "AUTH-009",
-        createSyntheticRequest(
+        syntheticRequest(
           token,
           inactiveMembershipWorkspaceId
         ),
@@ -387,43 +453,43 @@ export default async function handler(
       expected: "403",
       actual: "NO_FIXTURE",
       status: "SKIPPED",
-      note: "No inactive membership fixture is available."
+      note:
+        "No inactive membership fixture is available."
     });
   }
 
   /*
    * AUTH-010
-   * Invalid role -> 403
+   * Invalid role
    *
-   * We do NOT mutate production data to create an invalid role.
-   * If the database enum permits only valid roles, this test is skipped.
+   * We deliberately DO NOT mutate production data
+   * merely to manufacture an invalid role.
    */
   try {
-    const { data: memberships } = await supabaseAdmin
+    const {
+      data: memberships
+    } = await supabaseAdmin
       .from("workspace_members")
       .select("role")
       .limit(100);
 
-    const invalidRole = (memberships ?? [])
-      .map((row) => row.role)
-      .find(
-        (role) =>
-          typeof role === "string" &&
-          !ALLOWED_ROLES.has(role)
-      );
+    const invalidRole =
+      (memberships ?? [])
+        .map((row) => row.role)
+        .find(
+          (candidate) =>
+            typeof candidate === "string" &&
+            !ALLOWED_ROLES.has(candidate)
+        );
 
     if (invalidRole) {
-      /*
-       * An invalid role already existing in production should be
-       * rejected by middleware. We cannot safely construct it if
-       * the underlying enum does not permit it.
-       */
       results.push({
         id: "AUTH-010",
         expected: "403",
-        actual: "FIXTURE_DETECTED",
+        actual: "INVALID_ROLE_FIXTURE_EXISTS",
         status: "SKIPPED",
-        note: "Invalid role data exists, but no production data was mutated for testing."
+        note:
+          "Invalid role data exists, but production data was not modified."
       });
     } else {
       results.push({
@@ -431,7 +497,8 @@ export default async function handler(
         expected: "403",
         actual: "NO_FIXTURE",
         status: "SKIPPED",
-        note: "No invalid-role fixture exists; production data was not modified."
+        note:
+          "No invalid-role fixture exists. Production data was not modified."
       });
     }
   } catch {
@@ -440,26 +507,61 @@ export default async function handler(
       expected: "403",
       actual: "NO_FIXTURE",
       status: "SKIPPED",
-      note: "Invalid-role fixture cannot be safely created."
+      note:
+        "Invalid-role fixture could not be inspected safely."
+    });
+  }
+
+  /*
+   * AUTH-011
+   * Valid member
+   */
+  try {
+    await authorizeRequest(
+      syntheticRequest(
+        token,
+        workspaceId
+      )
+    );
+
+    results.push({
+      id: "AUTH-011",
+      expected: "AUTHORIZED",
+      actual:
+        role
+          ? `AUTHORIZED:${role}`
+          : "AUTHORIZED",
+      status: "PASS"
+    });
+  } catch {
+    results.push({
+      id: "AUTH-011",
+      expected: "AUTHORIZED",
+      actual: "DENIED",
+      status: "FAIL"
     });
   }
 
   /*
    * AUTH-012
-   * Wrong workspace boundary.
+   * Wrong workspace boundary
    *
-   * If a valid active workspace exists where the user is not a member,
-   * this is already covered by the real authorization boundary.
+   * Uses the same safe non-member fixture
+   * when one exists.
    */
-  if (activeOtherWorkspaceId) {
-    const result = await expectAuthorizationFailure(
-      "AUTH-012",
-      createSyntheticRequest(token, activeOtherWorkspaceId),
-      403
-    );
+  if (nonMemberWorkspaceId) {
+    const wrongWorkspaceResult =
+      await expectDenied(
+        "AUTH-012",
+        syntheticRequest(
+          token,
+          nonMemberWorkspaceId
+        ),
+        403
+      );
 
     results.push({
-      ...result,
+      ...wrongWorkspaceResult,
       note:
         "Wrong-workspace boundary tested using an active workspace where the current user has no membership."
     });
@@ -469,33 +571,49 @@ export default async function handler(
       expected: "403_OR_404",
       actual: "NO_FIXTURE",
       status: "SKIPPED",
-      note: "No safe alternate workspace fixture is available."
+      note:
+        "No safe alternate workspace fixture is available."
     });
   }
 
-  const passed = results.filter(
-    (result) => result.status === "PASS"
-  ).length;
+  const passed =
+    results.filter(
+      (result) =>
+        result.status === "PASS"
+    ).length;
 
-  const failed = results.filter(
-    (result) => result.status === "FAIL"
-  ).length;
+  const failed =
+    results.filter(
+      (result) =>
+        result.status === "FAIL"
+    ).length;
 
-  const skipped = results.filter(
-    (result) => result.status === "SKIPPED"
-  ).length;
+  const skipped =
+    results.filter(
+      (result) =>
+        result.status === "SKIPPED"
+    ).length;
 
-  return res.status(failed === 0 ? 200 : 500).json({
-    ok: failed === 0,
-    test: "P2_AUTHORIZATION",
-    workspace_id: current.workspace.id,
-    role: current.membership.role,
-    summary: {
-      total: results.length,
-      passed,
-      failed,
-      skipped
-    },
-    results
-  });
+  return res
+    .status(failed === 0 ? 200 : 500)
+    .json({
+      ok: failed === 0,
+      test: "P2_AUTHORIZATION",
+
+      /*
+       * Safe metadata only.
+       * No token is returned.
+       */
+      workspace_id: workspaceId,
+      role,
+
+      summary: {
+        total: results.length,
+        passed,
+        failed,
+        skipped
+      },
+
+      results
+    });
 }
