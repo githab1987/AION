@@ -1,671 +1,499 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { authorizeRequest } from "../../core/authorization/middleware.js";
-import { supabaseAdmin } from "../../infrastructure/supabase/client.js";
+(function () {
+"use strict";
 
-type TestStatus = "PASS" | "FAIL" | "SKIPPED";
+function createStyles() {
+if (document.getElementById("p2-test-ui-style")) return;
 
-interface TestResult {
-  id: string;
-  expected: string;
-  actual: string;
-  status: TestStatus;
-  note?: string;
+const style = document.createElement("style");
+style.id = "p2-test-ui-style";
+
+style.textContent = `
+  #p2TestLauncher {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 9998;
+    border: 0;
+    border-radius: 12px;
+    padding: 11px 15px;
+    background: #111827;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0,0,0,.20);
+  }
+
+  #p2TestPanel {
+    position: fixed;
+    right: 18px;
+    bottom: 70px;
+    width: min(420px, calc(100vw - 36px));
+    max-height: 70vh;
+    overflow: auto;
+    z-index: 9999;
+    display: none;
+    background: #ffffff;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.25);
+    font-family: system-ui, sans-serif;
+  }
+
+  #p2TestPanel h3 {
+    margin: 0 0 6px;
+    font-size: 17px;
+  }
+
+  #p2TestPanel .p2-subtitle {
+    margin-bottom: 14px;
+    color: #6b7280;
+    font-size: 12px;
+  }
+
+  #p2RunButton {
+    width: 100%;
+    border: 0;
+    border-radius: 10px;
+    padding: 11px;
+    background: #2563eb;
+    color: #ffffff;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  #p2RunButton:disabled {
+    opacity: .55;
+    cursor: wait;
+  }
+
+  #p2Summary {
+    margin: 14px 0;
+    padding: 10px;
+    border-radius: 10px;
+    background: #f3f4f6;
+    font-size: 13px;
+  }
+
+  .p2-result {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 12px;
+  }
+
+  .p2-result:last-child {
+    border-bottom: 0;
+  }
+
+  .p2-pass {
+    color: #15803d;
+    font-weight: 700;
+  }
+
+  .p2-fail {
+    color: #dc2626;
+    font-weight: 700;
+  }
+
+  .p2-skipped {
+    color: #b45309;
+    font-weight: 700;
+  }
+
+  #p2TestClose {
+    float: right;
+    border: 0;
+    background: transparent;
+    font-size: 20px;
+    cursor: pointer;
+    color: #6b7280;
+  }
+
+  #p2TestMessage {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .p2-diagnostic {
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: 8px;
+    background: #f9fafb;
+    font-size: 11px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+`;
+
+document.head.appendChild(style);
+
 }
 
-const ALLOWED_ROLES = new Set([
-  "OWNER",
-  "ADMIN",
-  "ACCOUNTANT",
-  "TAX",
-  "AUDITOR",
-  "ANALYST",
-  "VIEWER"
-]);
+function createUI() {
+if (document.getElementById("p2TestLauncher")) return;
 
-function getHeader(
-  req: VercelRequest,
-  name: string
-): string | undefined {
-  const value = req.headers[name.toLowerCase()];
+createStyles();
 
-  if (Array.isArray(value)) {
-    return value[0];
-  }
+const launcher = document.createElement("button");
+launcher.id = "p2TestLauncher";
+launcher.type = "button";
+launcher.textContent = "P2 Test";
 
-  return value;
+const panel = document.createElement("div");
+panel.id = "p2TestPanel";
+
+panel.innerHTML = `
+  <button id="p2TestClose" type="button" aria-label="Close">×</button>
+
+  <h3>P2 Authorization Test</h3>
+
+  <div class="p2-subtitle">
+    Live authorization boundary test. Access token is never displayed.
+  </div>
+
+  <button id="p2RunButton" type="button">
+    Jalankan P2 Test
+  </button>
+
+  <div id="p2TestMessage"></div>
+  <div id="p2Summary"></div>
+  <div id="p2Results"></div>
+`;
+
+document.body.appendChild(launcher);
+document.body.appendChild(panel);
+
+launcher.addEventListener("click", function () {
+  panel.style.display =
+    panel.style.display === "none" || !panel.style.display
+      ? "block"
+      : "none";
+});
+
+document
+  .getElementById("p2TestClose")
+  .addEventListener("click", function () {
+    panel.style.display = "none";
+  });
+
+document
+  .getElementById("p2RunButton")
+  .addEventListener("click", runP2Test);
+
 }
 
-function getErrorStatus(error: unknown): number | undefined {
-  if (!error || typeof error !== "object") {
-    return undefined;
-  }
-
-  const candidate = error as {
-    status?: unknown;
-    statusCode?: unknown;
-  };
-
-  if (typeof candidate.status === "number") {
-    return candidate.status;
-  }
-
-  if (typeof candidate.statusCode === "number") {
-    return candidate.statusCode;
-  }
-
-  return undefined;
-}
-
-function getErrorCode(error: unknown): string | undefined {
-  if (!error || typeof error !== "object") {
-    return undefined;
-  }
-
-  const candidate = error as {
-    code?: unknown;
-    error?: unknown;
-  };
-
-  if (typeof candidate.code === "string") {
-    return candidate.code;
-  }
-
-  if (typeof candidate.error === "string") {
-    return candidate.error;
-  }
-
-  return undefined;
-}
-
-function syntheticRequest(
-  authorization?: string,
-  workspaceId?: string
-): VercelRequest {
-  const headers: Record<string, string> = {};
-
-  if (authorization !== undefined) {
-    headers.authorization = authorization;
-  }
-
-  if (workspaceId !== undefined) {
-    headers["x-workspace-id"] = workspaceId;
-  }
-
-  return {
-    headers
-  } as VercelRequest;
-}
-
-async function expectDenied(
-  id: string,
-  req: VercelRequest,
-  expectedStatus: number
-): Promise<TestResult> {
-  try {
-    await authorizeRequest(req);
-
-    return {
-      id,
-      expected: String(expectedStatus),
-      actual: "AUTHORIZED",
-      status: "FAIL",
-      note: "Request was unexpectedly authorized."
-    };
-  } catch (error) {
-    const actualStatus = getErrorStatus(error);
-    const actualCode = getErrorCode(error);
-
-    return {
-      id,
-      expected: String(expectedStatus),
-      actual:
-        actualStatus !== undefined
-          ? actualCode
-            ? `${actualStatus}:${actualCode}`
-            : String(actualStatus)
-          : actualCode
-            ? `UNKNOWN:${actualCode}`
-            : "UNKNOWN",
-      status:
-        actualStatus === expectedStatus
-          ? "PASS"
-          : "FAIL"
-    };
-  }
-}
-
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
+async function refreshAuthenticationSession() {
+if (
+typeof supabaseClient === "undefined" ||
+!supabaseClient
 ) {
-  if (req.method !== "POST") {
-    return res.status(405).json({
-      ok: false,
-      error: "METHOD_NOT_ALLOWED"
-    });
-  }
-
-  /*
-   * P2 runner bootstrap.
-   *
-   * The caller must already be authenticated and authorized
-   * to execute the P2 test suite.
-   *
-   * IMPORTANT:
-   * We do NOT convert every authorization error to 401.
-   * The original middleware status/code must remain visible,
-   * otherwise P2 cannot diagnose its own bootstrap failure.
-   */
-  let current;
-
-  try {
-    current = await authorizeRequest(req);
-  } catch (error) {
-    const status = getErrorStatus(error) ?? 401;
-    const code =
-      getErrorCode(error) ??
-      (status === 401
-        ? "AUTHENTICATION_REQUIRED"
-        : "P2_BOOTSTRAP_AUTHORIZATION_FAILED");
-
-    return res.status(status).json({
-      ok: false,
-      error: code,
-      message:
-        "P2 runner bootstrap failed. The authorization middleware rejected the request.",
-      status
-    });
-  }
-
-  const authorization = current.authorization;
-
-  const userId = authorization.identity.userId;
-  const workspaceId = authorization.identity.workspaceId;
-  const role = authorization.roles[0] ?? null;
-
-  const token = getHeader(req, "authorization");
-  const incomingWorkspaceId = getHeader(
-    req,
-    "x-workspace-id"
-  );
-
-  if (!token || !incomingWorkspaceId) {
-    return res.status(400).json({
-      ok: false,
-      error: "P2_BOOTSTRAP_HEADERS_MISSING"
-    });
-  }
-
-  const results: TestResult[] = [];
-
-  /*
-   * AUTH-001
-   * No Authorization header
-   */
-  results.push(
-    await expectDenied(
-      "AUTH-001",
-      syntheticRequest(
-        undefined,
-        workspaceId
-      ),
-      401
-    )
-  );
-
-  /*
-   * AUTH-002
-   * Malformed Authorization header
-   */
-  results.push(
-    await expectDenied(
-      "AUTH-002",
-      syntheticRequest(
-        "NotBearerToken",
-        workspaceId
-      ),
-      401
-    )
-  );
-
-  /*
-   * AUTH-003
-   * Valid authentication + valid workspace
-   */
-  try {
-    await authorizeRequest(
-      syntheticRequest(
-        token,
-        workspaceId
-      )
-    );
-
-    results.push({
-      id: "AUTH-003",
-      expected: "AUTHORIZED",
-      actual: "AUTHORIZED",
-      status: "PASS",
-      note:
-        "Authenticated request continued through authorization middleware."
-    });
-  } catch (error) {
-    const status = getErrorStatus(error);
-    const code = getErrorCode(error);
-
-    results.push({
-      id: "AUTH-003",
-      expected: "AUTHORIZED",
-      actual:
-        status !== undefined
-          ? code
-            ? `${status}:${code}`
-            : String(status)
-          : code
-            ? `UNKNOWN:${code}`
-            : "DENIED",
-      status: "FAIL"
-    });
-  }
-
-  /*
-   * AUTH-004
-   * No workspace header
-   */
-  results.push(
-    await expectDenied(
-      "AUTH-004",
-      syntheticRequest(token),
-      400
-    )
-  );
-
-  /*
-   * AUTH-005
-   * Invalid workspace UUID
-   */
-  results.push(
-    await expectDenied(
-      "AUTH-005",
-      syntheticRequest(
-        token,
-        "not-a-uuid"
-      ),
-      400
-    )
-  );
-
-  /*
-   * AUTH-006
-   * Valid UUID but nonexistent workspace
-   */
-  const nonexistentWorkspace =
-    "00000000-0000-0000-0000-000000000000";
-
-  results.push(
-    await expectDenied(
-      "AUTH-006",
-      syntheticRequest(
-        token,
-        nonexistentWorkspace
-      ),
-      404
-    )
-  );
-
-  /*
-   * Safe fixture discovery.
-   *
-   * Nothing is inserted, updated, deleted, or mutated.
-   */
-  let inactiveWorkspaceId:
-    | string
-    | undefined;
-
-  let nonMemberWorkspaceId:
-    | string
-    | undefined;
-
-  let inactiveMembershipWorkspaceId:
-    | string
-    | undefined;
-
-  try {
-    /*
-     * Find an inactive workspace.
-     */
-    const {
-      data: inactiveWorkspaces
-    } = await supabaseAdmin
-      .from("workspaces")
-      .select("id")
-      .eq("is_active", false)
-      .limit(1);
-
-    inactiveWorkspaceId =
-      inactiveWorkspaces?.[0]?.id;
-
-    /*
-     * Find active workspaces other than current workspace.
-     */
-    const {
-      data: activeWorkspaces
-    } = await supabaseAdmin
-      .from("workspaces")
-      .select("id")
-      .eq("is_active", true)
-      .neq("id", workspaceId)
-      .limit(50);
-
-    const candidateWorkspaceIds =
-      (activeWorkspaces ?? [])
-        .map((row) => row.id)
-        .filter(
-          (id): id is string =>
-            typeof id === "string"
-        );
-
-    /*
-     * Find current user's active memberships.
-     */
-    const {
-      data: activeMemberships
-    } = await supabaseAdmin
-      .from("workspace_members")
-      .select("workspace_id")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .in(
-        "workspace_id",
-        candidateWorkspaceIds.length > 0
-          ? candidateWorkspaceIds
-          : [
-              "00000000-0000-0000-0000-000000000000"
-            ]
-      );
-
-    const memberWorkspaceIds =
-      new Set(
-        (activeMemberships ?? [])
-          .map(
-            (row) => row.workspace_id
-          )
-          .filter(
-            (id): id is string =>
-              typeof id === "string"
-          )
-      );
-
-    /*
-     * Active workspace where user is NOT a member.
-     */
-    nonMemberWorkspaceId =
-      candidateWorkspaceIds.find(
-        (id) =>
-          !memberWorkspaceIds.has(id)
-      );
-
-    /*
-     * Find inactive membership for this user.
-     */
-    const {
-      data: inactiveMemberships
-    } = await supabaseAdmin
-      .from("workspace_members")
-      .select("workspace_id")
-      .eq("user_id", userId)
-      .eq("is_active", false)
-      .limit(1);
-
-    inactiveMembershipWorkspaceId =
-      inactiveMemberships?.[0]?.workspace_id;
-  } catch {
-    /*
-     * Fixture discovery failure is intentionally silent.
-     * No database error is exposed to the client.
-     */
-  }
-
-  /*
-   * AUTH-007
-   * Inactive workspace
-   */
-  if (inactiveWorkspaceId) {
-    results.push(
-      await expectDenied(
-        "AUTH-007",
-        syntheticRequest(
-          token,
-          inactiveWorkspaceId
-        ),
-        403
-      )
-    );
-  } else {
-    results.push({
-      id: "AUTH-007",
-      expected: "403",
-      actual: "NO_FIXTURE",
-      status: "SKIPPED",
-      note:
-        "No inactive workspace fixture is available."
-    });
-  }
-
-  /*
-   * AUTH-008
-   * Active workspace where current user is not a member
-   */
-  if (nonMemberWorkspaceId) {
-    results.push(
-      await expectDenied(
-        "AUTH-008",
-        syntheticRequest(
-          token,
-          nonMemberWorkspaceId
-        ),
-        403
-      )
-    );
-  } else {
-    results.push({
-      id: "AUTH-008",
-      expected: "403",
-      actual: "NO_FIXTURE",
-      status: "SKIPPED",
-      note:
-        "No active non-member workspace fixture is available."
-    });
-  }
-
-  /*
-   * AUTH-009
-   * Inactive membership
-   */
-  if (inactiveMembershipWorkspaceId) {
-    results.push(
-      await expectDenied(
-        "AUTH-009",
-        syntheticRequest(
-          token,
-          inactiveMembershipWorkspaceId
-        ),
-        403
-      )
-    );
-  } else {
-    results.push({
-      id: "AUTH-009",
-      expected: "403",
-      actual: "NO_FIXTURE",
-      status: "SKIPPED",
-      note:
-        "No inactive membership fixture is available."
-    });
-  }
-
-  /*
-   * AUTH-010
-   * Invalid role.
-   *
-   * We deliberately DO NOT mutate production data
-   * merely to manufacture an invalid role.
-   */
-  try {
-    const {
-      data: memberships
-    } = await supabaseAdmin
-      .from("workspace_members")
-      .select("role")
-      .limit(100);
-
-    const invalidRole =
-      (memberships ?? [])
-        .map((row) => row.role)
-        .find(
-          (candidate) =>
-            typeof candidate === "string" &&
-            !ALLOWED_ROLES.has(candidate)
-        );
-
-    if (invalidRole) {
-      results.push({
-        id: "AUTH-010",
-        expected: "403",
-        actual: "INVALID_ROLE_FIXTURE_EXISTS",
-        status: "SKIPPED",
-        note:
-          "Invalid role data exists, but production data was not modified."
-      });
-    } else {
-      results.push({
-        id: "AUTH-010",
-        expected: "403",
-        actual: "NO_FIXTURE",
-        status: "SKIPPED",
-        note:
-          "No invalid-role fixture exists. Production data was not modified."
-      });
-    }
-  } catch {
-    results.push({
-      id: "AUTH-010",
-      expected: "403",
-      actual: "NO_FIXTURE",
-      status: "SKIPPED",
-      note:
-        "Invalid-role fixture could not be inspected safely."
-    });
-  }
-
-  /*
-   * AUTH-011
-   * Valid member
-   */
-  try {
-    await authorizeRequest(
-      syntheticRequest(
-        token,
-        workspaceId
-      )
-    );
-
-    results.push({
-      id: "AUTH-011",
-      expected: "AUTHORIZED",
-      actual:
-        role
-          ? `AUTHORIZED:${role}`
-          : "AUTHORIZED",
-      status: "PASS"
-    });
-  } catch (error) {
-    const status = getErrorStatus(error);
-    const code = getErrorCode(error);
-
-    results.push({
-      id: "AUTH-011",
-      expected: "AUTHORIZED",
-      actual:
-        status !== undefined
-          ? code
-            ? `${status}:${code}`
-            : String(status)
-          : code
-            ? `UNKNOWN:${code}`
-            : "DENIED",
-      status: "FAIL"
-    });
-  }
-
-  /*
-   * AUTH-012
-   * Wrong workspace boundary
-   */
-  if (nonMemberWorkspaceId) {
-    const wrongWorkspaceResult =
-      await expectDenied(
-        "AUTH-012",
-        syntheticRequest(
-          token,
-          nonMemberWorkspaceId
-        ),
-        403
-      );
-
-    results.push({
-      ...wrongWorkspaceResult,
-      note:
-        "Wrong-workspace boundary tested using an active workspace where the current user has no membership."
-    });
-  } else {
-    results.push({
-      id: "AUTH-012",
-      expected: "403_OR_404",
-      actual: "NO_FIXTURE",
-      status: "SKIPPED",
-      note:
-        "No safe alternate workspace fixture is available."
-    });
-  }
-
-  const passed =
-    results.filter(
-      (result) =>
-        result.status === "PASS"
-    ).length;
-
-  const failed =
-    results.filter(
-      (result) =>
-        result.status === "FAIL"
-    ).length;
-
-  const skipped =
-    results.filter(
-      (result) =>
-        result.status === "SKIPPED"
-    ).length;
-
-  return res
-    .status(failed === 0 ? 200 : 500)
-    .json({
-      ok: failed === 0,
-      test: "P2_AUTHORIZATION",
-
-      /*
-       * Safe metadata only.
-       * No token is returned.
-       */
-      workspace_id: workspaceId,
-      role,
-
-      summary: {
-        total: results.length,
-        passed,
-        failed,
-        skipped
-      },
-
-      results
-    });
+throw new Error(
+"P2_AUTH_CLIENT_UNAVAILABLE"
+);
 }
+
+const {
+  data,
+  error
+} = await supabaseClient.auth.getSession();
+
+if (error) {
+  throw new Error(
+    "P2_SESSION_READ_FAILED"
+  );
+}
+
+if (!data?.session) {
+  throw new Error(
+    "P2_SESSION_MISSING"
+  );
+}
+
+/*
+ * Force a refresh when Supabase reports an expiring/expired
+ * access token. The token itself is never displayed.
+ */
+const expiresAt =
+  Number(data.session.expires_at || 0);
+
+const now =
+  Math.floor(Date.now() / 1000);
+
+let session =
+  data.session;
+
+if (
+  !expiresAt ||
+  expiresAt <= now + 60
+) {
+  const refreshed =
+    await supabaseClient.auth.refreshSession();
+
+  if (refreshed.error) {
+    throw new Error(
+      "P2_SESSION_REFRESH_FAILED"
+    );
+  }
+
+  if (!refreshed.data?.session) {
+    throw new Error(
+      "P2_SESSION_REFRESH_EMPTY"
+    );
+  }
+
+  session =
+    refreshed.data.session;
+}
+
+/*
+ * Keep application state synchronized with the session that
+ * will be used by apiRequest().
+ */
+if (
+  typeof state !== "undefined"
+) {
+  state.session =
+    session;
+
+  state.user =
+    session.user || null;
+}
+
+return session;
+
+}
+
+async function bootstrapWorkspace() {
+if (typeof apiRequest !== "function") {
+throw new Error(
+"P2_API_CLIENT_UNAVAILABLE"
+);
+}
+
+const result =
+  await apiRequest(
+    "/me",
+    {
+      method: "GET"
+    },
+    false
+  );
+
+if (!result) {
+  throw new Error(
+    "P2_ME_EMPTY_RESPONSE"
+  );
+}
+
+if (
+  result.ok === false
+) {
+  throw new Error(
+    "P2_ME_REJECTED"
+  );
+}
+
+if (
+  typeof state !== "undefined" &&
+  result.workspace
+) {
+  state.workspace =
+    result.workspace;
+}
+
+if (
+  !result.workspace?.id
+) {
+  throw new Error(
+    "P2_WORKSPACE_MISSING"
+  );
+}
+
+return result;
+
+}
+
+async function runP2Test() {
+const button =
+document.getElementById(
+"p2RunButton"
+);
+
+const message =
+  document.getElementById(
+    "p2TestMessage"
+  );
+
+const summary =
+  document.getElementById(
+    "p2Summary"
+  );
+
+const resultsContainer =
+  document.getElementById(
+    "p2Results"
+  );
+
+button.disabled = true;
+button.textContent = "Menjalankan...";
+
+message.textContent =
+  "Memverifikasi session dan workspace...";
+
+summary.innerHTML = "";
+resultsContainer.innerHTML = "";
+
+try {
+  if (
+    typeof apiRequest !== "function"
+  ) {
+    throw new Error(
+      "P2_API_CLIENT_UNAVAILABLE"
+    );
+  }
+
+  await refreshAuthenticationSession();
+
+  await bootstrapWorkspace();
+
+  message.textContent =
+    "Session valid. Workspace valid. Menjalankan AUTH-001–012...";
+
+  const response =
+    await apiRequest(
+      "/p2-test",
+      {
+        method: "POST"
+      },
+      true
+    );
+
+  if (
+    !response ||
+    !response.results
+  ) {
+    throw new Error(
+      "P2_INVALID_RESPONSE"
+    );
+  }
+
+  const s =
+    response.summary || {};
+
+  summary.innerHTML = `
+    <strong>P2 Authorization</strong><br>
+    Total: ${Number(s.total || 0)}
+    &nbsp;|&nbsp;
+    PASS: ${Number(s.passed || 0)}
+    &nbsp;|&nbsp;
+    FAIL: ${Number(s.failed || 0)}
+    &nbsp;|&nbsp;
+    SKIPPED: ${Number(s.skipped || 0)}
+  `;
+
+  resultsContainer.innerHTML =
+    response.results
+      .map(function (result) {
+        const statusClass =
+          result.status === "PASS"
+            ? "p2-pass"
+            : result.status === "FAIL"
+              ? "p2-fail"
+              : "p2-skipped";
+
+        return `
+          <div class="p2-result">
+            <span>
+              <strong>${escapeHtml(result.id)}</strong><br>
+              ${escapeHtml(result.expected)}
+              →
+              ${escapeHtml(result.actual)}
+            </span>
+
+            <span class="${statusClass}">
+              ${escapeHtml(result.status)}
+            </span>
+          </div>
+        `;
+      })
+      .join("");
+
+  message.textContent =
+    response.ok
+      ? "P2 selesai. Tidak ada authorization failure."
+      : "P2 selesai. Ada test yang gagal.";
+} catch (error) {
+  const safeMessage =
+    error &&
+    typeof error.message === "string"
+      ? error.message
+      : "P2 test gagal dijalankan.";
+
+  message.textContent =
+    safeMessage;
+
+  summary.innerHTML = `
+    <strong>P2 tidak selesai.</strong>
+    <div class="p2-diagnostic">
+      Bootstrap gagal sebelum AUTH-001–012 dijalankan.
+      Error: ${escapeHtml(safeMessage)}
+    </div>
+  `;
+} finally {
+  button.disabled = false;
+  button.textContent =
+    "Jalankan P2 Test";
+}
+
+}
+
+function escapeHtml(value) {
+return String(value)
+.replaceAll("&", "&")
+.replaceAll("<", "<")
+.replaceAll(">", ">")
+.replaceAll('"', """)
+.replaceAll("'", "'");
+}
+
+function waitForApplication() {
+let attempts = 0;
+
+const timer =
+  setInterval(function () {
+    attempts += 1;
+
+    if (
+      typeof apiRequest === "function" &&
+      typeof supabaseClient !== "undefined" &&
+      supabaseClient &&
+      document.body
+    ) {
+      clearInterval(timer);
+      createUI();
+    }
+
+    if (attempts >= 40) {
+      clearInterval(timer);
+    }
+  }, 250);
+
+}
+
+if (
+document.readyState === "loading"
+) {
+document.addEventListener(
+"DOMContentLoaded",
+waitForApplication
+);
+} else {
+waitForApplication();
+}
+})();
