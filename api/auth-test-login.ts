@@ -45,12 +45,14 @@ export default async function handler(
       password
     });
 
-  if (error || !data.session) {
-    return res.status(401).json({
-      ok: false,
-      error: "LOGIN_FAILED"
-    });
-  }
+if (error || !data.session) {
+  return res.status(401).json({
+    ok: false,
+    error: "LOGIN_FAILED",
+    supabase_error: error?.code ?? null,
+    supabase_message: error?.message ?? null
+  });
+}
 
   return res.status(200).json({
     ok: true,
