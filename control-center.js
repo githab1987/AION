@@ -1,7 +1,12 @@
 /* ============================================================
    SPECIAL ALI
-   STEP 79 — CONTROL CENTER
-   Authoritative backend state renderer
+   CONTROL CENTER
+   AUTHORITATIVE STATE RENDERER
+============================================================ */
+
+
+/* ============================================================
+   LOAD AUTHORITATIVE STATE
 ============================================================ */
 
 async function loadControlCenterState() {
@@ -9,40 +14,81 @@ async function loadControlCenterState() {
   const workspaceId =
     state.workspace?.id;
 
+
   if (!workspaceId) {
 
     return {
       ok: false,
       state: [],
-      error: "WORKSPACE_NOT_AVAILABLE"
+      error:
+        "WORKSPACE_NOT_AVAILABLE"
     };
 
   }
 
-  return apiRequest(
-    "/v1/control-center/state",
-    {
-      method: "GET"
-    }
-  );
 
+  const result =
+    await apiRequest(
+      "/v1/control-center/state",
+      {
+        method: "GET"
+      }
+    );
+
+
+  /* ----------------------------------------------------------
+     RESPONSE INTEGRITY
+  ---------------------------------------------------------- */
+
+  if (
+    !result ||
+    result.ok !== true
+  ) {
+
+    throw new Error(
+      result?.error ||
+      "CONTROL_CENTER_INVALID_RESPONSE"
+    );
+
+  }
+
+
+  if (
+    !Array.isArray(result.state)
+  ) {
+
+    throw new Error(
+      "CONTROL_CENTER_INVALID_STATE"
+    );
+
+  }
+
+
+  /* ----------------------------------------------------------
+     WORKSPACE INTEGRITY
+  ---------------------------------------------------------- */
+
+  if (
+    result.workspace_id &&
+    result.workspace_id !== workspaceId
+  ) {
+
+    throw new Error(
+      "CONTROL_CENTER_WORKSPACE_MISMATCH"
+    );
+
+  }
+
+
+  return result;
 }
 
 
 /* ============================================================
-   CONTROL CENTER RENDERER
+   CONTROL CENTER
 ============================================================ */
 
 async function renderCommandCenter() {
-
-  const firstName =
-    state.profile?.full_name
-      ?.split(" ")[0] ||
-    state.user
-      ?.user_metadata
-      ?.full_name
-      ?.split(" ")[0] ||
-    "there";
 
   $("#content").innerHTML = `
 
@@ -70,6 +116,7 @@ async function renderCommandCenter() {
 
     </div>
 
+
     <section
       id="controlCenterRoot"
       class="card"
@@ -94,14 +141,17 @@ async function renderCommandCenter() {
 
   `;
 
+
   try {
 
     const result =
       await loadControlCenterState();
 
+
     renderControlCenterState(
       result
     );
+
 
   } catch (error) {
 
@@ -115,7 +165,7 @@ async function renderCommandCenter() {
 
 
 /* ============================================================
-   STATE RENDERER
+   AUTHORITATIVE STATE
 ============================================================ */
 
 function renderControlCenterState(
@@ -128,23 +178,31 @@ function renderControlCenterState(
   const status =
     $("#controlCenterStatus");
 
+
   if (!root) {
     return;
   }
+
 
   const rows =
     Array.isArray(result?.state)
       ? result.state
       : [];
 
+
+  /* ----------------------------------------------------------
+     NO AUTHORITATIVE STATE
+  ---------------------------------------------------------- */
+
   if (!rows.length) {
 
     if (status) {
 
       status.textContent =
-        "Backend connected. No Control Center state is currently available.";
+        "Backend connected. No authoritative Control Center state is available.";
 
     }
+
 
     root.innerHTML = `
 
@@ -163,8 +221,10 @@ function renderControlCenterState(
       </div>
 
       <div class="card-copy">
+
         The backend has not returned a Control Center state
         for this workspace yet.
+
       </div>
 
     `;
@@ -172,8 +232,33 @@ function renderControlCenterState(
     return;
   }
 
+
+  /* ----------------------------------------------------------
+     AUTHORITATIVE ROW
+  ---------------------------------------------------------- */
+
   const current =
     rows[0];
+
+
+  if (
+    !current ||
+    typeof current !== "object"
+  ) {
+
+    renderControlCenterFailure(
+      new Error(
+        "CONTROL_CENTER_INVALID_STATE_ROW"
+      )
+    );
+
+    return;
+  }
+
+
+  /* ----------------------------------------------------------
+     STATE CARDS
+  ---------------------------------------------------------- */
 
   const stateCards = [
 
@@ -229,14 +314,17 @@ function renderControlCenterState(
 
   ];
 
+
   if (status) {
 
     status.textContent =
       `Authoritative state: ${
-        current.status || "UNKNOWN"
+        current.status ||
+        "UNKNOWN"
       }`;
 
   }
+
 
   root.innerHTML = `
 
@@ -305,7 +393,7 @@ function renderControlCenterState(
 
 
 /* ============================================================
-   BLOCKERS / UNRESOLVED / WARNINGS / ACTIONS
+   COLLECTIONS
 ============================================================ */
 
 function renderControlCollections(
@@ -313,24 +401,36 @@ function renderControlCollections(
 ) {
 
   const blockers =
-    Array.isArray(current.blockers)
+    Array.isArray(
+      current.blockers
+    )
       ? current.blockers
       : [];
 
+
   const unresolved =
-    Array.isArray(current.unresolved_items)
+    Array.isArray(
+      current.unresolved_items
+    )
       ? current.unresolved_items
       : [];
 
+
   const warnings =
-    Array.isArray(current.warnings)
+    Array.isArray(
+      current.warnings
+    )
       ? current.warnings
       : [];
 
+
   const actions =
-    Array.isArray(current.available_actions)
+    Array.isArray(
+      current.available_actions
+    )
       ? current.available_actions
       : [];
+
 
   return `
 
@@ -373,6 +473,7 @@ function renderControlCollections(
 
     </div>
 
+
     <div
       style="
         margin-top:22px;
@@ -394,25 +495,32 @@ function renderControlCollections(
 
       State version:
       ${escapeHTML(
-        current.state_version ??
-        "—"
+        String(
+          current.state_version ??
+          "—"
+        )
       )}
 
       <br />
 
       Deterministic:
-      ${current.deterministic
-        ? "YES"
-        : "NO"}
+      ${
+        current.deterministic
+          ? "YES"
+          : "NO"
+      }
 
       <br />
 
       State hash:
+
       <span class="mono">
+
         ${escapeHTML(
           current.state_hash ||
           "—"
         )}
+
       </span>
 
     </div>
@@ -421,6 +529,10 @@ function renderControlCollections(
 
 }
 
+
+/* ============================================================
+   COLLECTION CARD
+============================================================ */
 
 function controlCollection(
   title,
@@ -432,6 +544,7 @@ function controlCollection(
     items.length
       ? items
       : [emptyMessage];
+
 
   return `
 
@@ -451,6 +564,7 @@ function controlCollection(
       >
         ${escapeHTML(title)}
       </div>
+
 
       <div
         style="
@@ -472,11 +586,11 @@ function controlCollection(
                 color:#4b5563;
               "
             >
+
               ${escapeHTML(
-                typeof item === "string"
-                  ? item
-                  : JSON.stringify(item)
+                safeControlValue(item)
               )}
+
             </div>
 
           `
@@ -492,34 +606,68 @@ function controlCollection(
 
 
 /* ============================================================
-   SAFE STATE FORMATTING
+   SAFE VALUE
 ============================================================ */
 
-function formatControlState(
+function safeControlValue(
   value
 ) {
 
   if (
     value === null ||
-    value === undefined ||
-    value === ""
+    value === undefined
   ) {
 
     return "NOT_REPORTED";
 
   }
 
+
   if (
-    typeof value === "object"
+    typeof value === "string"
   ) {
+
+    return value;
+
+  }
+
+
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+
+    return String(value);
+
+  }
+
+
+  try {
 
     return JSON.stringify(
       value
     );
 
+  } catch {
+
+    return "UNSERIALIZABLE_VALUE";
+
   }
 
-  return String(value);
+}
+
+
+/* ============================================================
+   SAFE STATE FORMAT
+============================================================ */
+
+function formatControlState(
+  value
+) {
+
+  return safeControlValue(
+    value
+  );
 
 }
 
@@ -538,6 +686,7 @@ function renderControlCenterFailure(
   const status =
     $("#controlCenterStatus");
 
+
   if (status) {
 
     status.textContent =
@@ -545,15 +694,35 @@ function renderControlCenterFailure(
 
   }
 
+
   if (!root) {
     return;
   }
+
+
+  let message =
+    "CONTROL_CENTER_UNAVAILABLE";
+
+
+  try {
+
+    message =
+      normalizeError(error);
+
+  } catch {
+
+    message =
+      "CONTROL_CENTER_UNAVAILABLE";
+
+  }
+
 
   root.innerHTML = `
 
     <div class="eyebrow">
       CONTROL CENTER BLOCKED
     </div>
+
 
     <h2
       style="
@@ -564,12 +733,14 @@ function renderControlCenterFailure(
       No state was fabricated.
     </h2>
 
+
     <div class="card-copy">
 
       The backend did not provide a valid
-      Control Center response.
+      authoritative Control Center response.
 
     </div>
+
 
     <div
       style="
@@ -578,9 +749,11 @@ function renderControlCenterFailure(
         font-size:12px;
       "
     >
+
       ${escapeHTML(
-        normalizeError(error)
+        message
       )}
+
     </div>
 
   `;
@@ -589,7 +762,7 @@ function renderControlCenterFailure(
 
 
 /* ============================================================
-   PUBLIC CONTROL CENTER API
+   PUBLIC API
 ============================================================ */
 
 window.SPECIAL_ALI_CONTROL_CENTER = {
