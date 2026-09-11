@@ -17,6 +17,7 @@ if (!supabaseServiceRoleKey) {
 export const supabaseAdmin = createClient(
   supabaseUrl,
   supabaseServiceRoleKey,
+  supabaseAnonKey
   {
     auth: {
       autoRefreshToken: false,
