@@ -4124,20 +4124,31 @@ async function apiRequest(
   }
 
 
-  const method =
-    options.method ||
-    "GET";
+    const method =
+      options.method ||
+      "GET";
 
 
-  const headers = {
+    const headers = {
 
-    "Content-Type":
+      "Content-Type":
       "application/json",
 
-    "Accept":
+      "Accept":
       "application/json"
 
-  };
+ };
+
+
+  if (
+  requireAuth &&
+  state.workspace?.id
+) {
+
+  headers["X-Workspace-Id"] =
+    state.workspace.id;
+
+}
 
 
   if (token) {
