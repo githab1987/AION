@@ -32,13 +32,10 @@
 
 const CONFIG = {
   SUPABASE_URL:
-    window.SPECIAL_ALI_SUPABASE_URL ||
-    "YOUR_SUPABASE_URL",
+    "https://dqbnqvskfgcjktexpcym.supabase.co",
 
   SUPABASE_ANON_KEY:
-    window.SPECIAL_ALI_SUPABASE_ANON_KEY ||
-    "YOUR_SUPABASE_ANON_KEY",
-
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxYm5xdnNrZmdjamt0ZXhwY3ltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5MzcxMzQsImV4cCI6MjEwNDUxMzEzNH0.5c3e6bEPKjVDhDdMESWFgWy1Ym0UIpTYNJc7O35Rpng"
   API_BASE:
     window.SPECIAL_ALI_API_BASE ||
     "/api/v1",
