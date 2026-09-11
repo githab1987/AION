@@ -56,6 +56,27 @@ function getErrorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
+function getErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+
+  const candidate = error as {
+    code?: unknown;
+    error?: unknown;
+  };
+
+  if (typeof candidate.code === "string") {
+    return candidate.code;
+  }
+
+  if (typeof candidate.error === "string") {
+    return candidate.error;
+  }
+
+  return undefined;
+}
+
 function syntheticRequest(
   authorization?: string,
   workspaceId?: string
@@ -92,14 +113,19 @@ async function expectDenied(
     };
   } catch (error) {
     const actualStatus = getErrorStatus(error);
+    const actualCode = getErrorCode(error);
 
     return {
       id,
       expected: String(expectedStatus),
       actual:
         actualStatus !== undefined
-          ? String(actualStatus)
-          : "UNKNOWN",
+          ? actualCode
+            ? `${actualStatus}:${actualCode}`
+            : String(actualStatus)
+          : actualCode
+            ? `UNKNOWN:${actualCode}`
+            : "UNKNOWN",
       status:
         actualStatus === expectedStatus
           ? "PASS"
@@ -120,27 +146,34 @@ export default async function handler(
   }
 
   /*
-   * Bootstrap:
+   * P2 runner bootstrap.
    *
-   * The caller must already be authenticated and authorized.
-   * The access token is used only inside this server process.
+   * The caller must already be authenticated and authorized
+   * to execute the P2 test suite.
    *
-   * The token is NEVER:
-   * - returned
-   * - logged
-   * - stored
-   * - included in test results
+   * IMPORTANT:
+   * We do NOT convert every authorization error to 401.
+   * The original middleware status/code must remain visible,
+   * otherwise P2 cannot diagnose its own bootstrap failure.
    */
   let current;
 
   try {
     current = await authorizeRequest(req);
-  } catch {
-    return res.status(401).json({
+  } catch (error) {
+    const status = getErrorStatus(error) ?? 401;
+    const code =
+      getErrorCode(error) ??
+      (status === 401
+        ? "AUTHENTICATION_REQUIRED"
+        : "P2_BOOTSTRAP_AUTHORIZATION_FAILED");
+
+    return res.status(status).json({
       ok: false,
-      error: "AUTHENTICATION_REQUIRED",
+      error: code,
       message:
-        "A valid authenticated session is required to run P2 tests."
+        "P2 runner bootstrap failed. The authorization middleware rejected the request.",
+      status
     });
   }
 
@@ -215,11 +248,21 @@ export default async function handler(
       note:
         "Authenticated request continued through authorization middleware."
     });
-  } catch {
+  } catch (error) {
+    const status = getErrorStatus(error);
+    const code = getErrorCode(error);
+
     results.push({
       id: "AUTH-003",
       expected: "AUTHORIZED",
-      actual: "DENIED",
+      actual:
+        status !== undefined
+          ? code
+            ? `${status}:${code}`
+            : String(status)
+          : code
+            ? `UNKNOWN:${code}`
+            : "DENIED",
       status: "FAIL"
     });
   }
@@ -335,7 +378,9 @@ export default async function handler(
         "workspace_id",
         candidateWorkspaceIds.length > 0
           ? candidateWorkspaceIds
-          : ["00000000-0000-0000-0000-000000000000"]
+          : [
+              "00000000-0000-0000-0000-000000000000"
+            ]
       );
 
     const memberWorkspaceIds =
@@ -460,7 +505,7 @@ export default async function handler(
 
   /*
    * AUTH-010
-   * Invalid role
+   * Invalid role.
    *
    * We deliberately DO NOT mutate production data
    * merely to manufacture an invalid role.
@@ -533,11 +578,21 @@ export default async function handler(
           : "AUTHORIZED",
       status: "PASS"
     });
-  } catch {
+  } catch (error) {
+    const status = getErrorStatus(error);
+    const code = getErrorCode(error);
+
     results.push({
       id: "AUTH-011",
       expected: "AUTHORIZED",
-      actual: "DENIED",
+      actual:
+        status !== undefined
+          ? code
+            ? `${status}:${code}`
+            : String(status)
+          : code
+            ? `UNKNOWN:${code}`
+            : "DENIED",
       status: "FAIL"
     });
   }
@@ -545,9 +600,6 @@ export default async function handler(
   /*
    * AUTH-012
    * Wrong workspace boundary
-   *
-   * Uses the same safe non-member fixture
-   * when one exists.
    */
   if (nonMemberWorkspaceId) {
     const wrongWorkspaceResult =
