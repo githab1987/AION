@@ -7,6 +7,10 @@ import {
   nextStage
 } from "./lifecycle.js";
 
+import {
+  processExecutionStage
+} from "./stages.js";
+
 import type {
   ExecutionStage,
   ExecutionStatus
@@ -40,20 +44,47 @@ function mapExecution(
   row: ExecutionRow
 ) {
   return {
-    id: row.id,
-    tenantId: row.tenant_id,
-    workspaceId: row.workspace_id,
-    ingestionJobId: row.ingestion_job_id,
-    dataObjectId: row.data_object_id,
-    status: row.status,
-    currentStage: row.current_stage,
-    progress: row.progress,
-    result: row.result || {},
-    error: row.error || null,
-    startedAt: row.started_at,
-    completedAt: row.completed_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
+    id:
+      row.id,
+
+    tenantId:
+      row.tenant_id,
+
+    workspaceId:
+      row.workspace_id,
+
+    ingestionJobId:
+      row.ingestion_job_id,
+
+    dataObjectId:
+      row.data_object_id,
+
+    status:
+      row.status,
+
+    currentStage:
+      row.current_stage,
+
+    progress:
+      row.progress,
+
+    result:
+      row.result || {},
+
+    error:
+      row.error || null,
+
+    startedAt:
+      row.started_at,
+
+    completedAt:
+      row.completed_at,
+
+    createdAt:
+      row.created_at,
+
+    updatedAt:
+      row.updated_at
   };
 }
 
@@ -66,18 +97,34 @@ export async function createExecution(
   } = await supabaseAdmin
     .from("execution_runs")
     .insert({
-      tenant_id: input.tenantId,
-      workspace_id: input.workspaceId,
-      ingestion_job_id: input.ingestionJobId,
+      tenant_id:
+        input.tenantId,
+
+      workspace_id:
+        input.workspaceId,
+
+      ingestion_job_id:
+        input.ingestionJobId,
+
       data_object_id:
         input.dataObjectId ?? null,
-      status: "QUEUED",
-      current_stage: "DATA_RECEIVED",
-      progress: executionProgress(
-        "DATA_RECEIVED"
-      ),
-      result: {},
-      error: null
+
+      status:
+        "QUEUED",
+
+      current_stage:
+        "DATA_RECEIVED",
+
+      progress:
+        executionProgress(
+          "DATA_RECEIVED"
+        ),
+
+      result:
+        {},
+
+      error:
+        null
     })
     .select("*")
     .single();
@@ -100,10 +147,16 @@ export async function startExecution(
   } = await supabaseAdmin
     .from("execution_runs")
     .update({
-      status: "RUNNING",
-      started_at: new Date().toISOString()
+      status:
+        "RUNNING",
+
+      started_at:
+        new Date().toISOString()
     })
-    .eq("id", executionId)
+    .eq(
+      "id",
+      executionId
+    )
     .select("*")
     .single();
 
@@ -125,7 +178,10 @@ export async function advanceExecution(
   } = await supabaseAdmin
     .from("execution_runs")
     .select("*")
-    .eq("id", executionId)
+    .eq(
+      "id",
+      executionId
+    )
     .single();
 
   if (currentError) {
@@ -135,23 +191,78 @@ export async function advanceExecution(
   const row =
     current as ExecutionRow;
 
-  const upcomingStage =
-    nextStage(row.current_stage);
+  /*
+   * Execute the current stage before
+   * moving to the next stage.
+   */
+  const stageResult =
+    await processExecutionStage(
+      {
+        executionId:
+          row.id,
 
+        tenantId:
+          row.tenant_id,
+
+        workspaceId:
+          row.workspace_id,
+
+        ingestionJobId:
+          row.ingestion_job_id,
+
+        dataObjectId:
+          row.data_object_id ?? ""
+      },
+      row.current_stage
+    );
+
+  const nextResults: Record<
+    string,
+    unknown
+  > = {
+    ...(row.result || {}),
+
+    [row.current_stage]:
+      stageResult
+  };
+
+  const upcomingStage =
+    nextStage(
+      row.current_stage
+    );
+
+  /*
+   * DATA_READY is the final stage.
+   * The stage has just been processed,
+   * therefore execution is now complete.
+   */
   if (!upcomingStage) {
+
     const {
       data,
       error
     } = await supabaseAdmin
       .from("execution_runs")
       .update({
-        status: "COMPLETED",
-        current_stage: "DATA_READY",
-        progress: 100,
+        status:
+          "COMPLETED",
+
+        current_stage:
+          "DATA_READY",
+
+        progress:
+          100,
+
+        result:
+          nextResults,
+
         completed_at:
           new Date().toISOString()
       })
-      .eq("id", executionId)
+      .eq(
+        "id",
+        executionId
+      )
       .select("*")
       .single();
 
@@ -164,20 +275,33 @@ export async function advanceExecution(
     );
   }
 
+  /*
+   * Move to next stage.
+   */
   const {
     data,
     error
   } = await supabaseAdmin
     .from("execution_runs")
     .update({
-      status: "RUNNING",
-      current_stage: upcomingStage,
+      status:
+        "RUNNING",
+
+      current_stage:
+        upcomingStage,
+
       progress:
         executionProgress(
           upcomingStage
-        )
+        ),
+
+      result:
+        nextResults
     })
-    .eq("id", executionId)
+    .eq(
+      "id",
+      executionId
+    )
     .select("*")
     .single();
 
@@ -200,12 +324,19 @@ export async function failExecution(
   } = await supabaseAdmin
     .from("execution_runs")
     .update({
-      status: "FAILED",
-      error: errorPayload,
+      status:
+        "FAILED",
+
+      error:
+        errorPayload,
+
       completed_at:
         new Date().toISOString()
     })
-    .eq("id", executionId)
+    .eq(
+      "id",
+      executionId
+    )
     .select("*")
     .single();
 
@@ -228,8 +359,14 @@ export async function getExecution(
   } = await supabaseAdmin
     .from("execution_runs")
     .select("*")
-    .eq("id", executionId)
-    .eq("workspace_id", workspaceId)
+    .eq(
+      "id",
+      executionId
+    )
+    .eq(
+      "workspace_id",
+      workspaceId
+    )
     .single();
 
   if (error) {
