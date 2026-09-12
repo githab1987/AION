@@ -1,4486 +1,2015 @@
-/* ============================================================
-   SPECIAL ALI
-   Financial Control Operating System
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
 
-   Frontend responsibilities:
-   - UI
-   - navigation
-   - Supabase Auth session
-   - password recovery
-   - file selection
-   - API invocation
-   - rendering authoritative backend state
+  <title>SPECIAL ALI — Financial Control without the noise.</title>
 
-   Backend responsibilities:
-   - authoritative state
-   - database mutation
-   - validation
-   - evidence
-   - OCR/extraction
-   - accounting
-   - tax
-   - dependencies
-   - proof
-   - audit
-   - authorization
-============================================================ */
+  <meta
+    name="description"
+    content="SPECIAL ALI — Financial Control without the noise."
+  />
 
+  <script src="https://cdn.tailwindcss.com"></script>
 
-/* ============================================================
-   CONFIGURATION
-============================================================ */
-
-const CONFIG = {
-  SUPABASE_URL:
-    "https://dqbnqvskfgcjktexpcym.supabase.co",
-  SUPABASE_ANON_KEY:
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxYm5xdnNrZmdjamt0ZXhwY3ltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5MzcxMzQsImV4cCI6MjEwNDUxMzEzNH0.5c3e6bEPKjVDhDdMESWFgWy1Ym0UIpTYNJc7O35Rpng",
-  API_BASE:
-    window.SPECIAL_ALI_API_BASE ||
-    "/api/v1",
-
-  STORAGE_BUCKET:
-    "evidence"
-};
-
-
-/* ============================================================
-   SUPABASE
-============================================================ */
-
-let supabaseClient = null;
-
-function initSupabase() {
-
-  if (
-    !window.supabase ||
-    !CONFIG.SUPABASE_URL ||
-    CONFIG.SUPABASE_URL === "YOUR_SUPABASE_URL" ||
-    !CONFIG.SUPABASE_ANON_KEY ||
-    CONFIG.SUPABASE_ANON_KEY === "YOUR_SUPABASE_ANON_KEY"
-  ) {
-    return false;
-  }
-
-  supabaseClient = window.supabase.createClient(
-    CONFIG.SUPABASE_URL,
-    CONFIG.SUPABASE_ANON_KEY,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ["Inter", "system-ui", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        }
       }
-    }
-  );
-
-  return true;
-}
-
-
-/* ============================================================
-   APPLICATION STATE
-
-   UI state is NOT authoritative state.
-============================================================ */
-
-const state = {
-
-  session: null,
-  user: null,
-  profile: null,
-  workspace: null,
-
-  /*
-    Password recovery state.
-
-    This prevents the recovery session from being
-    treated as a normal authenticated application session.
-  */
-  recoveryMode: false,
-
-  route: "ali",
-
-  sidebarCollapsed:
-    localStorage.getItem("special_ali_sidebar") === "collapsed",
-
-  mobileNavOpen: false,
-
-  aliVisible: false,
-
-  aliOpenCount: 0,
-
-  aliLastContext: null,
-
-  processing: false,
-
-  uploadFiles: [],
-
-  pendingConfirmation: null,
-
-  backendConfigured: false
-};
-
-
-/* ============================================================
-   ROUTES
-============================================================ */
-
-const ROUTES = {
-
-  ali: {
-    title: "ALI Command Center",
-    section: "ALI"
-  },
-
-  tasks: {
-    title: "Tasks",
-    section: "ALI"
-  },
-
-  "action-center": {
-    title: "Action Center",
-    section: "ALI"
-  },
-
-  activity: {
-    title: "Activity",
-    section: "ALI"
-  },
-
-  work: {
-    title: "Work",
-    section: "WORK"
-  },
-
-  investigation: {
-    title: "Investigation",
-    section: "WORK",
-    parent: "work"
-  },
-
-  reconciliation: {
-    title: "Reconciliation",
-    section: "WORK",
-    parent: "work"
-  },
-
-  findings: {
-    title: "Findings",
-    section: "WORK",
-    parent: "work"
-  },
-
-  exceptions: {
-    title: "Exceptions",
-    section: "WORK",
-    parent: "work"
-  },
-
-  unresolved: {
-    title: "Unresolved",
-    section: "WORK",
-    parent: "work"
-  },
-
-  "accounting-overview": {
-    title: "Accounting Overview",
-    section: "ACCOUNTING"
-  },
-
-  transactions: {
-    title: "Transactions",
-    section: "ACCOUNTING"
-  },
-
-  journal: {
-    title: "Journal",
-    section: "ACCOUNTING"
-  },
-
-  ledger: {
-    title: "Ledger",
-    section: "ACCOUNTING"
-  },
-
-  accounts: {
-    title: "Accounts",
-    section: "ACCOUNTING"
-  },
-
-  receivables: {
-    title: "Receivables",
-    section: "ACCOUNTING"
-  },
-
-  payables: {
-    title: "Payables",
-    section: "ACCOUNTING"
-  },
-
-  inventory: {
-    title: "Inventory",
-    section: "ACCOUNTING"
-  },
-
-  "fixed-assets": {
-    title: "Fixed Assets",
-    section: "ACCOUNTING"
-  },
-
-  adjustments: {
-    title: "Adjustments",
-    section: "ACCOUNTING"
-  },
-
-  "period-close": {
-    title: "Period Close",
-    section: "ACCOUNTING"
-  },
-
-  "financial-reports": {
-    title: "Financial Reports",
-    section: "ACCOUNTING"
-  },
-
-  "tax-overview": {
-    title: "Tax Overview",
-    section: "TAX"
-  },
-
-  "tax-data": {
-    title: "Tax Data",
-    section: "TAX"
-  },
-
-  "tax-calculations": {
-    title: "Tax Calculations",
-    section: "TAX"
-  },
-
-  "tax-reconciliation": {
-    title: "Tax Reconciliation",
-    section: "TAX"
-  },
-
-  "tax-rules": {
-    title: "Tax Rules",
-    section: "TAX"
-  },
-
-  "tax-issues": {
-    title: "Tax Issues",
-    section: "TAX"
-  },
-
-  "tax-reports": {
-    title: "Tax Reports / Export",
-    section: "TAX"
-  },
-
-  "data-overview": {
-    title: "Data Center",
-    section: "DATA CENTER"
-  },
-
-  sources: {
-    title: "Sources",
-    section: "DATA CENTER"
-  },
-
-  documents: {
-    title: "Documents",
-    section: "DATA CENTER"
-  },
-
-  ingestion: {
-    title: "Data Ingestion",
-    section: "DATA CENTER"
-  },
-
-  ocr: {
-    title: "OCR / Extraction",
-    section: "DATA CENTER"
-  },
-
-  "data-validation": {
-    title: "Data Validation",
-    section: "DATA CENTER"
-  },
-
-  "data-health": {
-    title: "Data Health",
-    section: "DATA CENTER"
-  },
-
-  duplicates: {
-    title: "Duplicates",
-    section: "DATA CENTER"
-  },
-
-  "reset-data": {
-    title: "Reset Data",
-    section: "DATA CENTER"
-  },
-
-  "delete-data": {
-    title: "Delete Data",
-    section: "DATA CENTER"
-  },
-
-  "refresh-audit": {
-    title: "Refresh Audit",
-    section: "DATA CENTER"
-  },
-
-  "evidence-registry": {
-    title: "Evidence Registry",
-    section: "EVIDENCE"
-  },
-
-  proof: {
-    title: "Proof",
-    section: "EVIDENCE"
-  },
-
-  conflicts: {
-    title: "Conflicts",
-    section: "EVIDENCE"
-  },
-
-  "pending-approval": {
-    title: "Pending Approval",
-    section: "HUMAN GATE"
-  },
-
-  decisions: {
-    title: "Decisions",
-    section: "HUMAN GATE"
-  },
-
-  "decision-history": {
-    title: "Decision History",
-    section: "HUMAN GATE"
-  },
-
-  "control-report": {
-    title: "Control Report",
-    section: "REPORTS"
-  },
-
-  "accounting-report": {
-    title: "Accounting Report",
-    section: "REPORTS"
-  },
-
-  "tax-report": {
-    title: "Tax Report",
-    section: "REPORTS"
-  },
-
-  "audit-report": {
-    title: "Audit Report",
-    section: "REPORTS"
-  },
-
-  "execution-log": {
-    title: "Execution Log",
-    section: "AUDIT"
-  },
-
-  "event-log": {
-    title: "Event Log",
-    section: "AUDIT"
-  },
-
-  "audit-trail": {
-    title: "Audit Trail",
-    section: "AUDIT"
-  },
-
-  account: {
-    title: "Account",
-    section: "SETTINGS"
-  },
-
-  workspace: {
-    title: "Workspace",
-    section: "SETTINGS"
-  },
-
-  members: {
-    title: "Members & Roles",
-    section: "SETTINGS"
-  },
-
-  permissions: {
-    title: "Permissions",
-    section: "SETTINGS"
-  },
-
-  "accounting-settings": {
-    title: "Accounting Settings",
-    section: "SETTINGS"
-  },
-
-  "tax-settings": {
-    title: "Tax Settings",
-    section: "SETTINGS"
-  },
-
-  integrations: {
-    title: "Integrations",
-    section: "SETTINGS"
-  },
-
-  preferences: {
-    title: "Preferences",
-    section: "SETTINGS"
-  }
-};
-
-
-/* ============================================================
-   ALI LANGUAGE
-============================================================ */
-
-const ALI_MESSAGES = {
-
-  commandCenter: [
-    "Saya siap. Kita mulai dari apa yang benar-benar ada di workspace ini.",
-    "Workspace siap. Beri saya datanya, lalu kita lihat apa yang sebenarnya terjadi.",
-    "Saya di sini. Tidak perlu merapikan semuanya dulu. Kita bisa mulai dari data yang ada.",
-    "Mari kita mulai. Saya akan membedakan apa yang terbukti, apa yang perlu diperiksa, dan apa yang belum bisa disimpulkan."
-  ],
-
-  openAgain: [
-    "Saya kembali. Kita lanjut dari konteks terakhir.",
-    "Saya di sini lagi. Mari kita lihat apa yang membutuhkan perhatian sekarang.",
-    "Baik. Saya kembali ke workspace. Tidak ada yang saya anggap selesai tanpa dasar yang cukup.",
-    "Kita lanjut. Saya akan menjaga konteks pekerjaan ini tetap terhubung dengan buktinya."
-  ],
-
-  upload: [
-    "Saya menerima file-nya. Saya akan memeriksa isinya sebelum menggunakannya.",
-    "Data masuk. Saya akan ekstrak, validasi, cari duplikasi, lalu daftarkan evidence-nya.",
-    "Saya belum menganggap file ini sebagai data yang benar. Kita periksa dulu."
-  ],
-
-  processing: [
-    "Saya sedang memeriksa struktur data. Tunggu sampai validasi selesai sebelum menarik kesimpulan.",
-    "Extraction sedang berjalan. Saya akan mempertahankan hubungan antara hasil ekstraksi dan sumber aslinya.",
-    "Saya sedang memeriksa data, bukan sekadar membaca teksnya."
-  ],
-
-  work: [
-    "Di Work, kita fokus pada hal-hal yang membutuhkan pemeriksaan, keputusan, atau penyelesaian.",
-    "Saya akan membantu memprioritaskan pekerjaan berdasarkan kondisi data dan evidence."
-  ],
-
-  findings: [
-    "Finding belum otomatis berarti kesalahan. Kita perlu evidence yang cukup sebelum menyimpulkannya.",
-    "Saya tidak akan menutup finding hanya karena terlihat masuk akal. Resolution harus dapat dibuktikan."
-  ],
-
-  reconciliation: [
-    "Reconciliation dimulai dari kecocokan evidence, bukan dari angka yang ingin kita cocokkan.",
-    "Saya akan membedakan EXACT, PROBABLE, PARTIAL, AMBIGUOUS, NO MATCH dan CONTRADICTED."
-  ],
-
-  unresolved: [
-    "Yang belum terselesaikan tetap terlihat. Saya tidak akan membuat masalah menghilang hanya karena belum ada jawabannya.",
-    "UNRESOLVED tetap menjadi bagian dari kontrol sampai ada resolution yang tervalidasi."
-  ],
-
-  tax: [
-    "Untuk Tax, saya akan memisahkan perlakuan perpajakan dari perlakuan accounting.",
-    "Kalau rule belum established, hasil pajak tidak boleh diperlakukan sebagai final.",
-    "Saya akan menjaga hubungan antara tax result, rule version, evidence dan calculation."
-  ],
-
-  accounting: [
-    "Untuk Accounting, kita bisa mulai dari transaction, journal, reconciliation atau closing.",
-    "Saya akan menjaga trace dari input sampai final accounting result."
-  ]
-};
-
-
-/* ============================================================
-   DOM HELPERS
-============================================================ */
-
-const $ = (selector) =>
-  document.querySelector(selector);
-
-const $$ = (selector) =>
-  Array.from(
-    document.querySelectorAll(selector)
-  );
-
-
-/* ============================================================
-   BOOT
-============================================================ */
-
-document.addEventListener(
-  "DOMContentLoaded",
-  async () => {
-
-    state.backendConfigured =
-      initSupabase();
-
-    bindEvents();
-    applySidebarState();
-
-    if (!state.backendConfigured) {
-
-      setConnection(
-        false,
-        "Backend not configured"
-      );
-
-      showLanding();
-
-      return;
-    }
-
-    await restoreSession();
-
-  }
-);
-
-
-/* ============================================================
-   EVENTS
-============================================================ */
-
-function bindEvents() {
-
-  $("#authForm")?.addEventListener(
-    "submit",
-    handleAuthSubmit
-  );
-
-  $("#fileInput")?.addEventListener(
-    "change",
-    handleFilesSelected
-  );
-
-  window.addEventListener(
-    "resize",
-    handleResize
-  );
-
-}
-
-
-/* ============================================================
-   AUTH SESSION
-============================================================ */
-
-async function restoreSession() {
-
-  try {
-
-    /*
-      Register listener BEFORE getSession().
-
-      This is important because Supabase can emit
-      PASSWORD_RECOVERY while processing the recovery link.
-    */
-
-    supabaseClient.auth.onAuthStateChange(
-      async (event, session) => {
-
-        /*
-          PASSWORD_RECOVERY must NEVER immediately open
-          the normal application dashboard.
-
-          It opens the existing auth modal in recovery mode.
-        */
-
-        if (
-          event === "PASSWORD_RECOVERY"
-        ) {
-
-          state.recoveryMode = true;
-
-          showPasswordRecovery();
-
-          return;
-        }
-
-
-        /*
-          While the user is changing the password,
-          do not let SIGNED_IN or TOKEN_REFRESHED
-          open the application automatically.
-        */
-
-        if (
-          state.recoveryMode
-        ) {
-
-          return;
-        }
-
-
-        if (session) {
-
-          await applyAuthenticatedSession(
-            session
-          );
-
-        } else {
-
-          state.session = null;
-          state.user = null;
-          state.profile = null;
-          state.workspace = null;
-
-          showLanding();
-
-        }
-
-      }
-    );
-
-
-    /*
-      Check whether this URL is a Supabase recovery URL.
-
-      We intentionally inspect only the type.
-      Tokens are never logged or displayed.
-    */
-
-    const recoveryFromURL =
-      isRecoveryURL();
-
-
-    const {
-      data,
-      error
-    } =
-      await supabaseClient.auth.getSession();
-
-    if (error) {
-      throw error;
-    }
-
-
-    /*
-      Recovery URL takes priority over normal session.
-    */
-
-    if (recoveryFromURL) {
-
-      state.recoveryMode = true;
-
-      showPasswordRecovery();
-
-      return;
-    }
-
-
-    if (data?.session) {
-
-      await applyAuthenticatedSession(
-        data.session
-      );
-
-    } else {
-
-      showLanding();
-
-    }
-
-  } catch (error) {
-
-    console.error(error);
-
-    setConnection(
-      false,
-      "Session unavailable"
-    );
-
-    showLanding();
-
-  }
-
-}
-
-
-/* ============================================================
-   DETECT PASSWORD RECOVERY URL
-============================================================ */
-
-function isRecoveryURL() {
-
-  try {
-
-    const url =
-      new URL(
-        window.location.href
-      );
-
-    /*
-      Supabase recovery links can use
-      query parameters or hash parameters.
-
-      We only inspect "type".
-    */
-
-    const queryType =
-      url.searchParams.get(
-        "type"
-      );
-
-    if (
-      queryType === "recovery"
-    ) {
-      return true;
-    }
-
-
-    const hash =
-      url.hash.replace(
-        /^#/,
-        ""
-      );
-
-    if (!hash) {
-      return false;
-    }
-
-    const hashParams =
-      new URLSearchParams(
-        hash
-      );
-
-    return (
-      hashParams.get("type") ===
-      "recovery"
-    );
-
-  } catch {
-
-    return false;
-
-  }
-
-}
-
-
-/* ============================================================
-   AUTH APPLY
-============================================================ */
-
-async function applyAuthenticatedSession(
-  session
-) {
-
-  /*
-    Never apply a recovery session as normal app session.
-  */
-
-  if (
-    state.recoveryMode
-  ) {
-    return;
-  }
-
-  state.session =
-    session;
-
-  state.user =
-    session.user;
-
-  setConnection(
-    true,
-    "Connected"
-  );
-
-  updateUserIdentity();
-
-
-  /*
-    Profile/workspace data should come from backend.
-    Never manufacture role/workspace authority in UI.
-  */
-
-  try {
-
-    const result =
-      await apiRequest(
-        "/me",
-        {
-          method: "GET"
-        },
-        false
-      );
-
-    if (result) {
-
-      state.profile =
-        result.profile || null;
-
-      state.workspace =
-        result.workspace || null;
-
-    }
-
-  } catch (error) {
-
-    console.warn(
-      "Profile/workspace API unavailable:",
-      error
-    );
-
-  }
-
-  updateUserIdentity();
-
-  showApp();
-
-  await navigate("ali");
-
-}
-
-
-/* ============================================================
-   AUTH UI
-============================================================ */
-
-let authMode =
-  "signin";
-
-
-function showAuth(
-  mode = "signin"
-) {
-
-  state.recoveryMode =
-    false;
-
-  authMode =
-    mode;
-
-  const modal =
-    $("#authModal");
-
-  if (!modal) {
-    return;
-  }
-
-  modal.classList.remove(
-    "hidden"
-  );
-
-
-  $("#authTitle").textContent =
-    mode === "signup"
-      ? "Create your SPECIAL ALI account"
-      : "Welcome back";
-
-
-  $("#authDescription").textContent =
-    mode === "signup"
-      ? "Create your account and start a controlled workspace."
-      : "Sign in to continue to your workspace.";
-
-
-  $("#nameField")
-    ?.classList
-    .toggle(
-      "hidden",
-      mode !== "signup"
-    );
-
-
-  $("#authSubmit").textContent =
-    mode === "signup"
-      ? "Create Account"
-      : "Sign In";
-
-
-  $("#authError")
-    ?.classList
-    .add("hidden");
-
-
-  clearRecoveryFields();
-
-}
-
-
-/* ============================================================
-   PASSWORD RECOVERY UI
-============================================================ */
-
-function showPasswordRecovery() {
-
-  state.recoveryMode =
-    true;
-
-  authMode =
-    "recovery";
-
-  const modal =
-    $("#authModal");
-
-  if (!modal) {
-    return;
-  }
-
-  modal.classList.remove(
-    "hidden"
-  );
-
-
-  $("#authTitle").textContent =
-    "Set a new password";
-
-
-  $("#authDescription").textContent =
-    "Create a new password for your SPECIAL ALI account.";
-
-
-  $("#nameField")
-    ?.classList
-    .add("hidden");
-
-
-  /*
-    Existing password field is reused as
-    the NEW password field.
-  */
-
-  const passwordField =
-    $("#authPassword");
-
-  if (passwordField) {
-
-    passwordField.value =
-      "";
-
-    passwordField.type =
-      "password";
-
-    passwordField.autocomplete =
-      "new-password";
-
-    passwordField.placeholder =
-      "New password";
-
-  }
-
-
-  /*
-    The existing auth form is preserved.
-
-    We insert only one additional confirmation
-    field immediately after the password field.
-  */
-
-  ensureRecoveryConfirmField();
-
-
-  $("#authSubmit").textContent =
-    "Update Password";
-
-
-  $("#authError")
-    ?.classList
-    .add("hidden");
-
-
-  setConnection(
-    true,
-    "Recovery session active"
-  );
-
-}
-
-
-/* ============================================================
-   RECOVERY CONFIRM FIELD
-============================================================ */
-
-function ensureRecoveryConfirmField() {
-
-  if (
-    $("#authPasswordConfirm")
-  ) {
-    return;
-  }
-
-  const passwordInput =
-    $("#authPassword");
-
-  if (!passwordInput) {
-    return;
-  }
-
-  const wrapper =
-    document.createElement(
-      "div"
-    );
-
-  wrapper.id =
-    "authPasswordConfirmWrapper";
-
-  wrapper.style.marginTop =
-    "12px";
-
-
-  wrapper.innerHTML = `
-
-    <input
-      id="authPasswordConfirm"
-      type="password"
-      autocomplete="new-password"
-      placeholder="Confirm new password"
-      style="
-        width:100%;
-        box-sizing:border-box;
-      "
-    >
-
-  `;
-
-
-  passwordInput.parentNode
-    ?.insertBefore(
-      wrapper,
-      passwordInput.nextSibling
-    );
-
-}
-
-
-/* ============================================================
-   CLEAR RECOVERY FIELDS
-============================================================ */
-
-function clearRecoveryFields() {
-
-  const wrapper =
-    $("#authPasswordConfirmWrapper");
-
-  if (wrapper) {
-    wrapper.remove();
-  }
-
-  const passwordInput =
-    $("#authPassword");
-
-  if (passwordInput) {
-
-    passwordInput.value =
-      "";
-
-    passwordInput.type =
-      "password";
-
-    passwordInput.autocomplete =
-      "current-password";
-
-    passwordInput.placeholder =
-      "";
-
-  }
-
-}
-
-
-/* ============================================================
-   CLOSE AUTH
-============================================================ */
-
-function closeAuth() {
-
-  $("#authModal")
-    ?.classList
-    .add("hidden");
-
-}
-
-
-/* ============================================================
-   AUTH SUBMIT
-============================================================ */
-
-async function handleAuthSubmit(
-  event
-) {
-
-  event.preventDefault();
-
-
-  if (
-    !state.backendConfigured
-  ) {
-
-    showToast(
-      "Supabase belum dikonfigurasi. Isi SUPABASE_URL dan SUPABASE_ANON_KEY terlebih dahulu.",
-      "warning"
-    );
-
-    return;
-  }
-
-
-  /*
-    PASSWORD RECOVERY
-  */
-
-  if (
-    state.recoveryMode ||
-    authMode === "recovery"
-  ) {
-
-    await handlePasswordRecovery();
-
-    return;
-
-  }
-
-
-  const email =
-    $("#authEmail")
-      ?.value
-      .trim() ||
-    "";
-
-
-  const password =
-    $("#authPassword")
-      ?.value ||
-    "";
-
-
-  const name =
-    $("#authName")
-      ?.value
-      .trim() ||
-    "";
-
-
-  const errorBox =
-    $("#authError");
-
-
-  errorBox?.classList.add(
-    "hidden"
-  );
-
-
-  const submitButton =
-    $("#authSubmit");
-
-
-  if (submitButton) {
-    submitButton.disabled = true;
-  }
-
-
-  try {
-
-    let result;
-
-
-    if (
-      authMode === "signup"
-    ) {
-
-      result =
-        await supabaseClient.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: name
-            }
-          }
-        });
-
-    } else {
-
-      result =
-        await supabaseClient.auth.signInWithPassword({
-          email,
-          password
-        });
-
-    }
-
-
-    if (result.error) {
-      throw result.error;
-    }
-
-
-    if (
-      authMode === "signup" &&
-      !result.data.session
-    ) {
-
-      closeAuth();
-
-      showToast(
-        "Account dibuat. Silakan verifikasi email jika Supabase mengaktifkan email confirmation.",
-        "success"
-      );
-
-      return;
-    }
-
-
-    closeAuth();
-
-  } catch (error) {
-
-    console.error(error);
-
-    if (errorBox) {
-
-      errorBox.textContent =
-        normalizeError(error);
-
-      errorBox.classList.remove(
-        "hidden"
-      );
-
-    }
-
-  } finally {
-
-    if (submitButton) {
-      submitButton.disabled =
-        false;
-    }
-
-  }
-
-}
-
-
-/* ============================================================
-   PASSWORD RECOVERY SUBMIT
-============================================================ */
-
-async function handlePasswordRecovery() {
-
-  const password =
-    $("#authPassword")
-      ?.value ||
-    "";
-
-
-  const confirmation =
-    $("#authPasswordConfirm")
-      ?.value ||
-    "";
-
-
-  const errorBox =
-    $("#authError");
-
-
-  const submitButton =
-    $("#authSubmit");
-
-
-  errorBox?.classList.add(
-    "hidden"
-  );
-
-
-  /*
-    Basic client-side checks.
-
-    Supabase remains authoritative for
-    the actual password update.
-  */
-
-  if (
-    password.length < 6
-  ) {
-
-    showAuthError(
-      "Password baru minimal 6 karakter."
-    );
-
-    return;
-
-  }
-
-
-  if (
-    password !== confirmation
-  ) {
-
-    showAuthError(
-      "Konfirmasi password tidak sama."
-    );
-
-    return;
-
-  }
-
-
-  if (
-    !supabaseClient
-  ) {
-
-    showAuthError(
-      "Supabase belum tersedia."
-    );
-
-    return;
-
-  }
-
-
-  if (submitButton) {
-    submitButton.disabled = true;
-  }
-
-
-  try {
-
-    const {
-      data,
-      error
-    } =
-      await supabaseClient.auth.updateUser({
-        password
-      });
-
-
-    if (error) {
-      throw error;
-    }
-
-
-    if (!data?.user) {
-
-      throw new Error(
-        "Password update tidak mengembalikan user."
-      );
-
-    }
-
-
-    /*
-      Password has been accepted by Supabase Auth.
-      Do not keep the recovery session as an
-      application session.
-    */
-
-    state.recoveryMode =
-      false;
-
-    state.session =
-      null;
-
-    state.user =
-      null;
-
-    state.profile =
-      null;
-
-    state.workspace =
-      null;
-
-
-    await supabaseClient.auth.signOut();
-
-
-    closeAuth();
-
-    clearRecoveryFields();
-
-
-    showLanding();
-
-
-    showToast(
-      "Password berhasil diperbarui. Silakan Sign In dengan password baru.",
-      "success"
-    );
-
-
-    /*
-      Remove recovery parameters from browser URL
-      without navigating away.
-    */
-
-    cleanRecoveryURL();
-
-
-  } catch (error) {
-
-    console.error(error);
-
-    showAuthError(
-      normalizeError(error)
-    );
-
-  } finally {
-
-    if (submitButton) {
-      submitButton.disabled = false;
-    }
-
-  }
-
-}
-
-
-/* ============================================================
-   AUTH ERROR
-============================================================ */
-
-function showAuthError(
-  message
-) {
-
-  const errorBox =
-    $("#authError");
-
-  if (!errorBox) {
-    return;
-  }
-
-  errorBox.textContent =
-    message;
-
-  errorBox.classList.remove(
-    "hidden"
-  );
-
-}
-
-
-/* ============================================================
-   CLEAN RECOVERY URL
-============================================================ */
-
-function cleanRecoveryURL() {
-
-  try {
-
-    const url =
-      new URL(
-        window.location.href
-      );
-
-    url.searchParams.delete(
-      "type"
-    );
-
-
-    /*
-      Remove the hash completely.
-
-      Recovery tokens must never remain visible
-      in the browser URL after completion.
-    */
-
-    url.hash =
-      "";
-
-
-    window.history.replaceState(
-      {},
-      document.title,
-      url.pathname +
-      (
-        url.search
-          ? `?${url.searchParams.toString()}`
-          : ""
-      )
-    );
-
-  } catch {
-
-    /*
-      URL cleanup is non-critical.
-      Never block successful password reset.
-    */
-
-  }
-
-}
-
-
-/* ============================================================
-   FORGOT PASSWORD
-   ============================================================ */
-
-async function requestPasswordReset() {
-
-  if (
-    !state.backendConfigured
-  ) {
-
-    showToast(
-      "Supabase belum dikonfigurasi.",
-      "warning"
-    );
-
-    return;
-
-  }
-
-
-  const email =
-    $("#authEmail")
-      ?.value
-      .trim() ||
-    "";
-
-
-  if (!email) {
-
-    showAuthError(
-      "Masukkan email terlebih dahulu."
-    );
-
-    return;
-
-  }
-
-
-  try {
-
-    const redirectTo =
-      window.location.origin +
-      window.location.pathname;
-
-
-    const {
-      error
-    } =
-      await supabaseClient.auth.resetPasswordForEmail(
-        email,
-        {
-          redirectTo
-        }
-      );
-
-
-    if (error) {
-      throw error;
-    }
-
-
-    showToast(
-      "Email reset password telah dikirim. Periksa inbox Anda.",
-      "success"
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    showAuthError(
-      normalizeError(error)
-    );
-
-  }
-
-}
-
-
-/* ============================================================
-   LOGOUT
-============================================================ */
-
-async function logout() {
-
-  if (!supabaseClient) {
-
-    showLanding();
-
-    return;
-
-  }
-
-
-  try {
-
-    const {
-      error
-    } =
-      await supabaseClient.auth.signOut();
-
-
-    if (error) {
-      throw error;
-    }
-
-
-    /*
-      Session is intentionally removed only by logout.
-      Closing/reloading the app does NOT call signOut.
-    */
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(
-      normalizeError(error),
-      "error"
-    );
-
-  }
-
-}
-
-
-/* ============================================================
-   VIEW SWITCHING
-============================================================ */
-
-function showLanding() {
-
-  $("#landingView")
-    ?.classList
-    .remove("hidden");
-
-  $("#learnView")
-    ?.classList
-    .add("hidden");
-
-  $("#appView")
-    ?.classList
-    .add("hidden");
-
-  closeMobileSidebar();
-
-  toggleALI(false);
-
-}
-
-
-function showLearnMore() {
-
-  $("#landingView")
-    ?.classList
-    .add("hidden");
-
-  $("#learnView")
-    ?.classList
-    .remove("hidden");
-
-  $("#appView")
-    ?.classList
-    .add("hidden");
-
-}
-
-
-function showApp() {
-
-  $("#landingView")
-    ?.classList
-    .add("hidden");
-
-  $("#learnView")
-    ?.classList
-    .add("hidden");
-
-  $("#appView")
-    ?.classList
-    .remove("hidden");
-
-  updateUserIdentity();
-
-}
-
-
-/* ============================================================
-   USER IDENTITY
-============================================================ */
-
-function updateUserIdentity() {
-
-  if (!state.user) {
-    return;
-  }
-
-
-  const fullName =
-    state.profile?.full_name ||
-    state.user.user_metadata?.full_name ||
-    state.user.email?.split("@")[0] ||
-    "User";
-
-
-  const role =
-    state.profile?.role ||
-    state.workspace?.role ||
-    "Member";
-
-
-  const initials =
-    getInitials(fullName);
-
-
-  $("#sidebarUserName").textContent =
-    fullName;
-
-  $("#sidebarUserRole").textContent =
-    role;
-
-  $("#topUserName").textContent =
-    fullName;
-
-  $("#sidebarAvatar").textContent =
-    initials;
-
-  $("#topAvatar").textContent =
-    initials;
-
-}
-
-
-function getInitials(name) {
-
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(
-      part => part[0]
-    )
-    .join("")
-    .toUpperCase();
-
-}
-
-
-/* ============================================================
-   NAVIGATION
-============================================================ */
-
-async function navigate(route) {
-
-  if (!ROUTES[route]) {
-    route = "ali";
-  }
-
-
-  state.route =
-    route;
-
-
-  updateActiveNavigation();
-
-
-  $("#topbarTitle").textContent =
-    ROUTES[route].title;
-
-
-  closeMobileSidebar();
-
-
-  await renderRoute(route);
-
-}
-
-
-function updateActiveNavigation() {
-
-  $$(".nav-item").forEach(
-    button => {
-
-      button.classList.toggle(
-        "active",
-        button.dataset.route ===
-        state.route
-      );
-
-    }
-  );
-
-}
-
-
-async function renderRoute(route) {
-
-  switch (route) {
-
-    case "ali":
-      renderCommandCenter();
-      break;
-
-    case "work":
-      renderWork();
-      break;
-
-    case "investigation":
-      renderInvestigation();
-      break;
-
-    case "reconciliation":
-      renderReconciliation();
-      break;
-
-    case "findings":
-      renderFindings();
-      break;
-
-    case "exceptions":
-      renderExceptions();
-      break;
-
-    case "unresolved":
-      renderUnresolved();
-      break;
-
-    case "ocr":
-      renderOCR();
-      break;
-
-    case "ingestion":
-      renderIngestion();
-      break;
-
-    case "reset-data":
-      renderResetData();
-      break;
-
-    case "delete-data":
-      renderDeleteData();
-      break;
-
-    case "refresh-audit":
-      renderRefreshAudit();
-      break;
-
-    case "account":
-      renderAccount();
-      break;
-
-    default:
-      renderGenericPage(route);
-      break;
-
-  }
-
-}
-
-
-/* ============================================================
-   COMMAND CENTER
-============================================================ */
-
-async function renderCommandCenter() {
-
-  const firstName =
-    state.profile?.full_name?.split(" ")[0] ||
-    state.user?.user_metadata?.full_name?.split(" ")[0] ||
-    "there";
-
-
-  const greeting =
-    getTimeGreeting();
-
-
-  const hasData =
-    Boolean(
-      state.workspace?.has_data
-    );
-
-
-  $("#content").innerHTML = `
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        ALI PERSONAL COMMAND CENTER
-      </div>
-
-      <h1 class="page-title">
-        ${
-          hasData
-            ? `Welcome back, ${escapeHTML(firstName)}.`
-            : `Your workspace is ready.`
-        }
-      </h1>
-
-      <p class="page-description">
-        ${
-          hasData
-            ? "Your financial control workspace is active. Let’s see what needs your attention."
-            : "Your workspace is empty. That’s okay. Give ALI the data first."
-        }
-      </p>
-
-      <div
-        class="ali-line"
-        id="commandAliLine"
-      ></div>
-
-    </div>
-
-
-    <div class="command-grid">
-
-      <section class="card upload-card">
-
-        <div class="upload-symbol">
-          ↑
-        </div>
-
-        <div class="eyebrow">
-          DATA INTAKE
-        </div>
-
-        <div class="card-title">
-          ${
-            hasData
-              ? "Add more data"
-              : "Upload Your Data"
-          }
-        </div>
-
-        <div class="card-copy">
-          Upload files directly from your computer or device.
-          ALI will not treat extracted information as authoritative
-          until extraction, validation, duplicate checks and evidence
-          registration have completed.
-        </div>
-
-        <div class="formats">
-          PDF · EXCEL · CSV · IMAGES · DOCUMENTS · JSON · XML
-        </div>
-
-        <div class="upload-actions">
-
-          <button
-            class="btn btn-green"
-            type="button"
-            onclick="openFilePicker()"
-          >
-            + Upload Data
-          </button>
-
-          <button
-            class="btn btn-soft"
-            type="button"
-            onclick="navigate('ingestion')"
-          >
-            View Ingestion
-          </button>
-
-        </div>
-
-      </section>
-
-
-      <section class="card ask-card">
-
-        <div class="eyebrow">
-          OPERATE WITH ALI
-        </div>
-
-        <div class="card-title">
-          Tell ALI what you need.
-        </div>
-
-        <textarea
-          id="aliInput"
-          placeholder="Example: Periksa invoice pembelian yang belum direkonsiliasi."
-        ></textarea>
-
-        <div style="margin-top:12px">
-
-          <button
-            class="btn btn-primary"
-            type="button"
-            onclick="submitALIRequest()"
-          >
-            Ask ALI
-          </button>
-
-        </div>
-
-        <div
-          id="askResponse"
-          class="ask-response"
-        >
-          ALI can reason and propose actions, but authoritative
-          state changes remain controlled by the backend.
-        </div>
-
-      </section>
-
-    </div>
-
-
-    <div class="state-strip">
-
-      <div class="state-card">
-        <div class="state-value">
-          ${hasData ? "—" : "0"}
-        </div>
-        <div class="state-label">
-          Processed documents
-        </div>
-      </div>
-
-      <div class="state-card">
-        <div class="state-value">
-          ${hasData ? "—" : "0"}
-        </div>
-        <div class="state-label">
-          Transactions
-        </div>
-      </div>
-
-      <div class="state-card">
-        <div class="state-value">
-          ${hasData ? "—" : "0"}
-        </div>
-        <div class="state-label">
-          Unresolved
-        </div>
-      </div>
-
-      <div class="state-card">
-        <div class="state-value">
-          ${hasData ? "—" : "Ready"}
-        </div>
-        <div class="state-label">
-          Control state
-        </div>
-      </div>
-
-    </div>
-
-  `;
-
-
-  typeALI(
-    `${greeting} ${escapeHTML(firstName)}. ${
-      hasData
-        ? "Workspace ini sudah memiliki data. Saya siap membantu memeriksanya."
-        : "Workspace ini masih kosong. Kita bisa mulai dari data yang Anda punya."
-    }`,
-    "COMMAND_CENTER"
-  );
-
-}
-
-
-/* ============================================================
-   TIME AWARE GREETING
-============================================================ */
-
-function getTimeGreeting() {
-
-  const hour =
-    new Date().getHours();
-
-
-  if (hour < 11) {
-    return "Good morning.";
-  }
-
-
-  if (hour < 17) {
-    return "Good afternoon.";
-  }
-
-
-  return "Good evening.";
-
-}
-
-
-/* ============================================================
-   ALI TOGGLE
-============================================================ */
-
-function toggleALI(force) {
-
-  const shouldOpen =
-    typeof force === "boolean"
-      ? force
-      : !state.aliVisible;
-
-
-  state.aliVisible =
-    shouldOpen;
-
-
-  const panel =
-    $("#aliPanel");
-
-
-  if (!panel) {
-    return;
-  }
-
-
-  if (shouldOpen) {
-
-    state.aliOpenCount++;
-
-
-    panel.classList.remove(
-      "hidden"
-    );
-
-
-    const message =
-      getContextualALIMessage();
-
-
-    typeALI(
-      message,
-      state.route.toUpperCase()
-    );
-
-  } else {
-
-    panel.classList.add(
-      "hidden"
-    );
-
-
-    state.aliLastContext =
-      `HIDDEN_AFTER_${state.route}`;
-
-  }
-
-}
-
-
-function getContextualALIMessage() {
-
-  const route =
-    state.route;
-
-
-  if (
-    state.aliOpenCount > 1 &&
-    state.aliLastContext === route
-  ) {
-
-    return randomFrom(
-      ALI_MESSAGES.openAgain
-    );
-
-  }
-
-
-  state.aliLastContext =
-    route;
-
-
-  if (
-    route === "findings"
-  ) {
-
-    return randomFrom(
-      ALI_MESSAGES.findings
-    );
-
-  }
-
-
-  if (
-    route === "reconciliation"
-  ) {
-
-    return randomFrom(
-      ALI_MESSAGES.reconciliation
-    );
-
-  }
-
-
-  if (
-    route === "unresolved"
-  ) {
-
-    return randomFrom(
-      ALI_MESSAGES.unresolved
-    );
-
-  }
-
-
-  if (
-    route.startsWith("tax-")
-  ) {
-
-    return randomFrom(
-      ALI_MESSAGES.tax
-    );
-
-  }
-
-
-  if (
-    route === "transactions" ||
-    route === "journal" ||
-    route === "ledger" ||
-    route === "accounts" ||
-    route.startsWith("accounting")
-  ) {
-
-    return randomFrom(
-      ALI_MESSAGES.accounting
-    );
-
-  }
-
-
-  if (
-    route === "work" ||
-    ROUTES[route]?.parent === "work"
-  ) {
-
-    return randomFrom(
-      ALI_MESSAGES.work
-    );
-
-  }
-
-
-  return randomFrom(
-    ALI_MESSAGES.commandCenter
-  );
-
-}
-
-
-/* ============================================================
-   ALI TYPE / REVEAL
-============================================================ */
-
-let aliTypingTimer =
-  null;
-
-
-function typeALI(
-  message,
-  context = ""
-) {
-
-  clearInterval(
-    aliTypingTimer
-  );
-
-
-  const output =
-    $("#aliMessage");
-
-
-  const contextOutput =
-    $("#aliContext");
-
-
-  if (!output) {
-    return;
-  }
-
-
-  output.textContent =
-    "";
-
-
-  if (contextOutput) {
-
-    contextOutput.textContent =
-      `CONTEXT · ${context}`;
-
-  }
-
-
-  let index =
-    0;
-
-
-  aliTypingTimer =
-    setInterval(
-      () => {
-
-        output.textContent =
-          message.slice(
-            0,
-            index
-          );
-
-        index++;
-
-
-        if (
-          index > message.length
-        ) {
-
-          clearInterval(
-            aliTypingTimer
-          );
-
-        }
-
-      },
-      14
-    );
-
-}
-
-
-/* ============================================================
-   ASK ALI
-============================================================ */
-
-async function submitALIRequest() {
-
-  const input =
-    $("#aliInput");
-
-
-  const response =
-    $("#askResponse");
-
-
-  if (!input) {
-    return;
-  }
-
-
-  const message =
-    input.value.trim();
-
-
-  if (!message) {
-
-    showToast(
-      "Tulis dulu apa yang ingin Anda kerjakan.",
-      "warning"
-    );
-
-    return;
-
-  }
-
-
-  toggleALI(true);
-
-
-  response.textContent =
-    "ALI is checking the request...";
-
-
-  try {
-
-    const result =
-      await apiRequest(
-        "/agent/messages",
-        {
-          method: "POST",
-          body: {
-            message,
-            workspace_id:
-              state.workspace?.id ||
-              null
-          }
-        }
-      );
-
-
-    response.textContent =
-      result?.message ||
-      "Request accepted by ALI.";
-
-
-    typeALI(
-      result?.message ||
-      "Request diterima. Saya akan memprosesnya melalui execution layer.",
-      "AGENT_REQUEST"
-    );
-
-  } catch (error) {
-
-    response.textContent =
-      "ALI belum dapat menjalankan request ini karena execution backend belum tersedia.";
-
-
-    typeALI(
-      "Saya belum akan berpura-pura sudah mengerjakannya. Execution backend belum mengembalikan hasil.",
-      "BACKEND_BOUNDARY"
-    );
-
-
-    showToast(
-      normalizeError(error),
-      "warning"
-    );
-
-  }
-
-}
-
-
-/* ============================================================
-   FILE UPLOAD
-============================================================ */
-
-function openFilePicker() {
-
-  $("#fileInput")?.click();
-
-}
-
-
-async function handleFilesSelected(
-  event
-) {
-
-  const files =
-    Array.from(
-      event.target.files ||
-      []
-    );
-
-
-  if (!files.length) {
-    return;
-  }
-
-
-  state.uploadFiles =
-    files;
-
-
-  typeALI(
-    randomFrom(
-      ALI_MESSAGES.upload
-    ),
-    "DATA_INTAKE"
-  );
-
-
-  await processUploadSelection(
-    files
-  );
-
-}
-
-
-async function processUploadSelection(
-  files
-) {
-
-  renderProcessingPage(
-    files
-  );
-
-
-  try {
-
-    const result =
-      await apiRequest(
-        "/ingestion/jobs",
-        {
-          method: "POST",
-          body: {
-            workspace_id:
-              state.workspace?.id ||
-              null,
-
-            files:
-              files.map(
-                file => ({
-                  name:
-                    file.name,
-
-                  size:
-                    file.size,
-
-                  type:
-                    file.type,
-
-                  last_modified:
-                    file.lastModified
-                })
-              )
-          }
-        }
-      );
-
-
-    if (!result) {
-
-      throw new Error(
-        "No ingestion job returned."
-      );
-
-    }
-
-
-    if (
-      result.upload_urls
-    ) {
-
-      await uploadFilesToSignedUrls(
-        files,
-        result.upload_urls
-      );
-
-    }
-
-
-    if (
-      result.execution_id
-    ) {
-
-      await monitorExecution(
-        result.execution_id
-      );
-
-    }
-
-
-    state.workspace = {
-      ...(state.workspace || {}),
-      has_data: true
     };
+  </script>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    await navigate(
-      "ingestion"
-    );
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
 
-  } catch (error) {
+  <script
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+    defer
+  ></script>
 
-    console.error(error);
-
-    renderProcessingError(
-      error
-    );
-
-  }
-
-}
-
-
-/* ============================================================
-   SIGNED UPLOAD
-============================================================ */
-
-async function uploadFilesToSignedUrls(
-  files,
-  uploadUrls
-) {
-
-  for (
-    let i = 0;
-    i < files.length;
-    i++
-  ) {
-
-    const file =
-      files[i];
-
-
-    const target =
-      uploadUrls[i];
-
-
-    if (!target) {
-
-      throw new Error(
-        `No upload target for ${file.name}`
-      );
-
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #6b7280;
+      --subtle: #9ca3af;
+      --line: #e5e7eb;
+      --surface: #ffffff;
+      --soft: #f7f8fa;
+      --green: #19a463;
+      --green-dark: #12804d;
+      --danger: #c93636;
+      --warning: #a56a00;
+      --blue: #2563eb;
+      --sidebar: 252px;
     }
 
-
-    const response =
-      await fetch(
-        target.url,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type":
-              file.type ||
-              "application/octet-stream"
-          },
-          body: file
-        }
-      );
-
-
-    if (!response.ok) {
-
-      throw new Error(
-        `Upload failed for ${file.name}`
-      );
-
+    * {
+      box-sizing: border-box;
     }
 
-  }
-
-}
-
-
-/* ============================================================
-   PROCESSING PAGE
-============================================================ */
-
-function renderProcessingPage(
-  files
-) {
-
-  $("#content").innerHTML = `
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        DATA INGESTION
-      </div>
-
-      <h1 class="page-title">
-        Checking your data.
-      </h1>
-
-      <p class="page-description">
-        ALI will not use extracted information as authoritative
-        until the ingestion pipeline has completed its checks.
-      </p>
-
-      <div class="ali-line">
-        Extraction · OCR · Classification · Validation · Duplicate Detection · Evidence
-      </div>
-
-    </div>
-
-    <section class="card processing-card">
-
-      ${files.map(
-        (file, index) => `
-
-        <div class="processing-row">
-
-          <div>
-
-            <div
-              style="
-                font-size:13px;
-                font-weight:600
-              "
-            >
-              ${escapeHTML(file.name)}
-            </div>
-
-            <div
-              id="processing-${index}"
-              class="progress"
-            >
-              <span></span>
-            </div>
-
-          </div>
-
-          <div
-            id="status-${index}"
-            class="status"
-          >
-            Waiting
-          </div>
-
-        </div>
-
-      `
-      ).join("")}
-
-    </section>
-
-  `;
-
-}
-
-
-/* ============================================================
-   MONITOR EXECUTION
-============================================================ */
-
-async function monitorExecution(
-  executionId
-) {
-
-  let finished =
-    false;
-
-
-  while (!finished) {
-
-    const result =
-      await apiRequest(
-        `/agent/executions/${encodeURIComponent(
-          executionId
-        )}`,
-        {
-          method: "GET"
-        }
-      );
-
-
-    if (!result) {
-      break;
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
+      background: #fff;
+      color: var(--ink);
+      font-family: Inter, system-ui, sans-serif;
     }
 
-
-    const execution =
-      result.execution ||
-      result;
-
-
-    const status =
-      execution.status;
-
-
-    updateExecutionUI(
-      execution
-    );
-
-
-    finished =
-      [
-        "COMPLETED",
-        "FAILED",
-        "STOPPED",
-        "BLOCKED"
-      ].includes(
-        status
-      );
-
-
-    if (!finished) {
-
-      await sleep(
-        1200
-      );
-
+    body {
+      overflow-x: hidden;
     }
 
-  }
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
 
-}
+    button {
+      cursor: pointer;
+    }
 
+    .hidden {
+      display: none !important;
+    }
 
-function updateExecutionUI(
-  execution
-) {
+    .mono {
+      font-family: "JetBrains Mono", monospace;
+    }
 
-  const steps =
-    execution.steps ||
-    [];
+    /* ------------------------------
+       LANDING
+    ------------------------------ */
 
+    .landing {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      background:
+        radial-gradient(
+          circle at 50% 35%,
+          rgba(25, 164, 99, 0.045),
+          transparent 34%
+        ),
+        #fff;
+    }
 
-  steps.forEach(
-    (
-      step,
-      index
-    ) => {
+    .landing-inner {
+      width: min(760px, 100%);
+      text-align: center;
+      transform: translateY(-2vh);
+    }
 
-      const bar =
-        document.querySelector(
-          `#processing-${index} span`
-        );
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--ink);
+      font-weight: 700;
+      letter-spacing: -0.035em;
+    }
 
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      position: relative;
+      display: grid;
+      place-items: center;
+    }
 
-      const status =
-        document.querySelector(
-          `#status-${index}`
-        );
+    .brand-mark::before,
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      border: 1.5px solid var(--ink);
+      transform: rotate(45deg);
+      border-radius: 8px;
+    }
 
+    .brand-mark::after {
+      inset: 8px;
+      border-color: var(--green);
+      transform: rotate(0deg);
+      border-radius: 6px;
+    }
 
-      if (
-        !bar ||
-        !status
-      ) {
-        return;
+    .brand-mark span {
+      position: relative;
+      z-index: 2;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+
+    .brand-name {
+      font-size: 17px;
+      letter-spacing: -0.035em;
+    }
+
+    .hero-title {
+      margin: 42px auto 0;
+      max-width: 760px;
+      font-size: clamp(48px, 8vw, 92px);
+      line-height: 0.98;
+      letter-spacing: -0.065em;
+      font-weight: 600;
+    }
+
+    .hero-tagline {
+      margin-top: 24px;
+      font-size: clamp(20px, 3vw, 29px);
+      line-height: 1.25;
+      letter-spacing: -0.035em;
+      color: #3f4650;
+    }
+
+    .hero-copy {
+      margin: 28px auto 0;
+      max-width: 600px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 16px;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 36px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 22px;
+      font-size: 14px;
+      font-weight: 600;
+      transition:
+        transform 180ms ease,
+        box-shadow 180ms ease,
+        background 180ms ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: var(--ink);
+      color: white;
+      box-shadow: 0 8px 24px rgba(17, 24, 39, 0.13);
+    }
+
+    .btn-primary:hover {
+      background: #000;
+      box-shadow: 0 12px 30px rgba(17, 24, 39, 0.18);
+    }
+
+    .btn-soft {
+      background: #f5f6f7;
+      color: var(--ink);
+    }
+
+    .btn-soft:hover {
+      background: #eceef0;
+    }
+
+    .btn-green {
+      background: var(--green);
+      color: white;
+    }
+
+    .btn-danger {
+      background: #fff1f1;
+      color: var(--danger);
+    }
+
+    .btn-link {
+      background: transparent;
+      color: var(--ink);
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+
+    .learn-link {
+      display: inline-block;
+      margin-top: 30px;
+      color: #555b64;
+      text-decoration: none;
+      font-size: 15px;
+    }
+
+    .learn-link strong {
+      color: var(--ink);
+    }
+
+    /* ------------------------------
+       APP SHELL
+    ------------------------------ */
+
+    .app-shell {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+      background: var(--soft);
+    }
+
+    .sidebar {
+      background: rgba(255,255,255,.96);
+      border-right: 1px solid var(--line);
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: var(--sidebar);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      transition:
+        width 220ms ease,
+        transform 220ms ease;
+      overflow: hidden;
+    }
+
+    .app-shell.sidebar-collapsed {
+      --sidebar: 76px;
+    }
+
+    .sidebar-top {
+      height: 76px;
+      padding: 0 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      flex-shrink: 0;
+    }
+
+    .sidebar-brand {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .sidebar-brand .brand {
+      white-space: nowrap;
+    }
+
+    .collapse-btn {
+      width: 34px;
+      height: 34px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+
+    .collapse-btn:hover {
+      background: #f3f4f6;
+      color: var(--ink);
+    }
+
+    .sidebar-scroll {
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 18px 12px 28px;
+    }
+
+    .nav-section {
+      margin-bottom: 22px;
+    }
+
+    .nav-label {
+      padding: 0 12px 8px;
+      font-size: 10px;
+      color: #a0a6ae;
+      font-weight: 700;
+      letter-spacing: .13em;
+    }
+
+    .nav-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-height: 42px;
+      padding: 9px 12px;
+      border: 0;
+      background: transparent;
+      color: #626973;
+      border-radius: 11px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 500;
+      transition:
+        background 160ms ease,
+        color 160ms ease;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .nav-item:hover {
+      background: #f5f6f7;
+      color: var(--ink);
+    }
+
+    .nav-item.active {
+      background: #f0f8f4;
+      color: #12804d;
+      font-weight: 600;
+    }
+
+    .nav-icon {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+    }
+
+    .nav-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 14px 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .user-mini {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      border-radius: 12px;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #edf0f2;
+      color: var(--ink);
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .user-meta {
+      min-width: 0;
+    }
+
+    .user-name {
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-role {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .main {
+      min-width: 0;
+      margin-left: var(--sidebar);
+      transition: margin-left 220ms ease;
+    }
+
+    .topbar {
+      height: 76px;
+      background: rgba(255,255,255,.88);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 30px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .mobile-menu-btn {
+      display: none;
+      border: 0;
+      background: #f3f4f6;
+      border-radius: 10px;
+      width: 38px;
+      height: 38px;
+    }
+
+    .topbar-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .connection {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .connection-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #d1d5db;
+    }
+
+    .connection.online .connection-dot {
+      background: var(--green);
+    }
+
+    .account-btn {
+      border: 0;
+      background: #f5f6f7;
+      border-radius: 999px;
+      padding: 6px 10px 6px 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .account-btn .avatar {
+      width: 28px;
+      height: 28px;
+    }
+
+    .content {
+      width: min(1380px, 100%);
+      margin: 0 auto;
+      padding: 42px clamp(20px, 4vw, 56px) 80px;
+    }
+
+    /* ------------------------------
+       COMMAND CENTER
+    ------------------------------ */
+
+    .command-head {
+      max-width: 900px;
+      margin-bottom: 34px;
+    }
+
+    .eyebrow {
+      font-size: 10px;
+      color: #8b929b;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .page-title {
+      margin-top: 12px;
+      font-size: clamp(32px, 5vw, 54px);
+      line-height: 1.02;
+      letter-spacing: -.055em;
+      font-weight: 600;
+    }
+
+    .page-description {
+      margin-top: 15px;
+      max-width: 700px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .ali-line {
+      min-height: 28px;
+      margin-top: 20px;
+      font-size: 14px;
+      color: #3f4650;
+      line-height: 1.7;
+    }
+
+    .command-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr);
+      gap: 20px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 8px 40px rgba(17,24,39,.035);
+    }
+
+    .upload-card {
+      min-height: 360px;
+      padding: clamp(24px, 4vw, 42px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .upload-symbol {
+      width: 58px;
+      height: 58px;
+      border-radius: 17px;
+      background: #f1f8f4;
+      color: var(--green);
+      display: grid;
+      place-items: center;
+      font-size: 26px;
+      margin-bottom: 22px;
+    }
+
+    .card-title {
+      font-size: 24px;
+      letter-spacing: -.035em;
+      font-weight: 600;
+    }
+
+    .card-copy {
+      margin-top: 10px;
+      max-width: 620px;
+      color: var(--muted);
+      line-height: 1.65;
+      font-size: 14px;
+    }
+
+    .formats {
+      margin-top: 16px;
+      color: #9298a0;
+      font-size: 11px;
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    .upload-actions {
+      margin-top: 26px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .ask-card {
+      padding: 28px;
+      min-height: 360px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ask-card textarea {
+      width: 100%;
+      min-height: 130px;
+      resize: vertical;
+      margin-top: 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 15px;
+      outline: none;
+      font-size: 13px;
+      line-height: 1.6;
+      transition: border 160ms ease, box-shadow 160ms ease;
+    }
+
+    .ask-card textarea:focus {
+      border-color: #a9d8c0;
+      box-shadow: 0 0 0 4px rgba(25,164,99,.08);
+    }
+
+    .ask-response {
+      margin-top: auto;
+      padding-top: 20px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .state-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .state-card {
+      padding: 18px;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+
+    .state-value {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -.03em;
+    }
+
+    .state-label {
+      margin-top: 5px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ------------------------------
+       DATA PROCESSING
+    ------------------------------ */
+
+    .processing-card {
+      padding: 26px;
+      margin-top: 20px;
+    }
+
+    .processing-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid #f0f1f2;
+    }
+
+    .processing-row:last-child {
+      border-bottom: 0;
+    }
+
+    .progress {
+      height: 6px;
+      background: #edf0f2;
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress > span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: var(--green);
+      border-radius: inherit;
+      transition: width 300ms ease;
+    }
+
+    .status {
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .status.ready {
+      color: var(--green-dark);
+    }
+
+    .status.warning {
+      color: var(--warning);
+    }
+
+    .status.blocked {
+      color: var(--danger);
+    }
+
+    /* ------------------------------
+       RESULT ROUTING
+    ------------------------------ */
+
+    .route-card {
+      padding: 30px;
+      margin-top: 20px;
+    }
+
+    .route-options {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .route-option {
+      text-align: left;
+      border: 1px solid var(--line);
+      background: white;
+      padding: 18px;
+      border-radius: 15px;
+      transition:
+        border 160ms ease,
+        transform 160ms ease,
+        box-shadow 160ms ease;
+    }
+
+    .route-option:hover {
+      transform: translateY(-2px);
+      border-color: #cfd5d9;
+      box-shadow: 0 10px 28px rgba(17,24,39,.06);
+    }
+
+    .route-option strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .route-option span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    /* ------------------------------
+       GENERIC PAGE
+    ------------------------------ */
+
+    .page-card {
+      margin-top: 24px;
+      padding: clamp(22px, 4vw, 34px);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      margin-top: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 680px;
+    }
+
+    th,
+    td {
+      padding: 13px 12px;
+      border-bottom: 1px solid #eef0f2;
+      text-align: left;
+      font-size: 12px;
+    }
+
+    th {
+      color: #8b929b;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    /* ------------------------------
+       BACK NAV
+    ------------------------------ */
+
+    .back-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 0;
+      background: transparent;
+      color: #6b7280;
+      font-size: 12px;
+      padding: 0;
+      margin-bottom: 24px;
+    }
+
+    .back-nav:hover {
+      color: var(--ink);
+    }
+
+    /* ------------------------------
+       OVERLAY / MOBILE
+    ------------------------------ */
+
+    .drawer-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.28);
+      z-index: 90;
+    }
+
+    .drawer-overlay.active {
+      display: block;
+    }
+
+    /* ------------------------------
+       MODAL
+    ------------------------------ */
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      background: rgba(15,23,42,.38);
+      backdrop-filter: blur(8px);
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .modal {
+      width: min(480px, 100%);
+      background: white;
+      border-radius: 22px;
+      padding: 28px;
+      box-shadow: 0 30px 100px rgba(0,0,0,.18);
+    }
+
+    .modal h3 {
+      margin: 0;
+      font-size: 21px;
+      letter-spacing: -.035em;
+    }
+
+    .modal p {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 25px;
+    }
+
+    /* ------------------------------
+       TOAST
+    ------------------------------ */
+
+    .toast-container {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: min(380px, calc(100vw - 44px));
+    }
+
+    .toast {
+      background: #111827;
+      color: white;
+      border-radius: 14px;
+      padding: 13px 15px;
+      box-shadow: 0 15px 45px rgba(0,0,0,.18);
+      font-size: 12px;
+      line-height: 1.5;
+      animation: toastIn 220ms ease;
+    }
+
+    .toast.success {
+      background: #116b43;
+    }
+
+    .toast.warning {
+      background: #805600;
+    }
+
+    .toast.error {
+      background: #9d2525;
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
       }
 
-
-      const progress =
-        Number(
-          step.progress ||
-          0
-        );
-
-
-      bar.style.width =
-        `${
-          Math.max(
-            0,
-            Math.min(
-              100,
-              progress
-            )
-          )
-        }%`;
-
-
-      status.textContent =
-        step.status ||
-        "Processing";
-
-
-      status.className =
-        `status ${
-          step.status === "COMPLETED"
-            ? "ready"
-            : step.status === "BLOCKED"
-              ? "blocked"
-              : step.status === "WARNING"
-                ? "warning"
-                : ""
-        }`;
-
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
-  );
 
-}
-
-
-/* ============================================================
-   INGESTION PAGE
-============================================================ */
-
-function renderIngestion() {
-
-  $("#content").innerHTML = `
-
-    ${backButton(
-      "Data Center",
-      "data-overview"
-    )}
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        DATA CENTER / INGESTION
-      </div>
-
-      <h1 class="page-title">
-        Data Ingestion
-      </h1>
-
-      <p class="page-description">
-        Upload local files, monitor extraction, OCR, validation,
-        duplicate checks and evidence registration.
-      </p>
-
-    </div>
-
-    <section class="card page-card">
-
-      <div class="card-title">
-        Upload local data
-      </div>
-
-      <div class="card-copy">
-        Files are processed through the controlled ingestion pipeline.
-        The browser does not decide whether data is valid.
-      </div>
-
-      <div class="upload-actions">
-
-        <button
-          class="btn btn-green"
-          onclick="openFilePicker()"
-        >
-          + Upload Data
-        </button>
-
-      </div>
-
-    </section>
-
-  `;
-
-}
-
-
-/* ============================================================
-   OCR PAGE
-============================================================ */
-
-function renderOCR() {
-
-  $("#content").innerHTML = `
-
-    ${backButton(
-      "Data Center",
-      "data-overview"
-    )}
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        DATA CENTER / EXTRACTION
-      </div>
-
-      <h1 class="page-title">
-        OCR / Extraction
-      </h1>
-
-      <p class="page-description">
-        OCR is part of the data ingestion engine for scanned PDFs
-        and images. Native digital text should be extracted directly
-        when possible.
-      </p>
-
-    </div>
-
-    <section class="card page-card">
-
-      <div class="eyebrow">
-        EXTRACTION FLOW
-      </div>
-
-      <div
-        style="
-          margin-top:16px;
-          display:grid;
-          gap:9px;
-          color:#4b5563;
-          font-size:13px;
-        "
-      >
-
-        <div>
-          01 · File security check
-        </div>
-
-        <div>
-          02 · File type detection
-        </div>
-
-        <div>
-          03 · Extraction router
-        </div>
-
-        <div>
-          04 · Native text/table extraction or OCR
-        </div>
-
-        <div>
-          05 · Classification
-        </div>
-
-        <div>
-          06 · Structured data extraction
-        </div>
-
-        <div>
-          07 · Validation
-        </div>
-
-        <div>
-          08 · Duplicate detection
-        </div>
-
-        <div>
-          09 · Evidence registration
-        </div>
-
-        <div>
-          10 · READY / REPAIR / BLOCK
-        </div>
-
-      </div>
-
-    </section>
-
-  `;
-
-}
-
-
-/* ============================================================
-   WORK
-============================================================ */
-
-function renderWork() {
-
-  $("#content").innerHTML = `
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        ALI PERSONAL COMMAND CENTER / WORK
-      </div>
-
-      <h1 class="page-title">
-        Work
-      </h1>
-
-      <p class="page-description">
-        One place for investigation, reconciliation, findings,
-        exceptions and unresolved work.
-      </p>
-
-    </div>
-
-    <section class="command-grid">
-
-      ${workCard(
-        "Investigation",
-        "Trace observations into hypotheses, tests, evidence and conclusions.",
-        "investigation"
-      )}
-
-      ${workCard(
-        "Reconciliation",
-        "Match records without silently turning probable matches into confirmed ones.",
-        "reconciliation"
-      )}
-
-      ${workCard(
-        "Findings",
-        "Track findings through controlled lifecycle states.",
-        "findings"
-      )}
-
-      ${workCard(
-        "Exceptions",
-        "See data and control conditions that need attention.",
-        "exceptions"
-      )}
-
-      ${workCard(
-        "Unresolved",
-        "Keep unresolved matters visible until they are actually resolved.",
-        "unresolved"
-      )}
-
-    </section>
-
-  `;
-
-}
-
-
-function workCard(
-  title,
-  description,
-  route
-) {
-
-  return `
-
-    <button
-      class="card"
-      style="
-        border:1px solid #e5e7eb;
-        padding:25px;
-        text-align:left;
-        background:#fff;
-      "
-      onclick="navigate('${route}')"
-    >
-
-      <div
-        class="eyebrow"
-        style="color:#19a463"
-      >
-        WORK
-      </div>
-
-      <div
-        class="card-title"
-        style="margin-top:9px"
-      >
-        ${title}
-      </div>
-
-      <div class="card-copy">
-        ${description}
-      </div>
-
-      <div
-        style="
-          margin-top:20px;
-          color:#6b7280;
-          font-size:12px;
-        "
-      >
-        Open →
-      </div>
-
-    </button>
-
-  `;
-
-}
-
-
-/* ============================================================
-   WORK CHILD PAGES
-============================================================ */
-
-function renderInvestigation() {
-
-  renderWorkChild(
-    "Investigation",
-    "Trace each investigation through Observation → Hypothesis → Test → Evidence → Result → Conclusion.",
-    "INVESTIGATION"
-  );
-
-}
-
-
-function renderReconciliation() {
-
-  renderWorkChild(
-    "Reconciliation",
-    "Reconcile records using controlled match states: EXACT, PROBABLE, PARTIAL, AMBIGUOUS, NO_MATCH and CONTRADICTED.",
-    "RECONCILIATION"
-  );
-
-}
-
-
-function renderFindings() {
-
-  renderWorkChild(
-    "Findings",
-    "Finding lifecycle: OPEN → INVESTIGATING → BLOCKED / WAITING_USER → RESOLVED / REJECTED / INVALIDATED.",
-    "FINDINGS"
-  );
-
-}
-
-
-function renderExceptions() {
-
-  renderWorkChild(
-    "Exceptions",
-    "Exceptions are actionable control conditions. They remain visible until validated resolution.",
-    "EXCEPTIONS"
-  );
-
-}
-
-
-function renderUnresolved() {
-
-  renderWorkChild(
-    "Unresolved",
-    "UNRESOLVED_REGISTRY prevents unresolved issues from disappearing from the control system.",
-    "UNRESOLVED"
-  );
-
-}
-
-
-function renderWorkChild(
-  title,
-  description,
-  context
-) {
-
-  $("#content").innerHTML = `
-
-    ${backButton(
-      "Work",
-      "work"
-    )}
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        WORK / ${context}
-      </div>
-
-      <h1 class="page-title">
-        ${title}
-      </h1>
-
-      <p class="page-description">
-        ${description}
-      </p>
-
-      <div class="ali-line">
-        ALI will render authoritative records from the backend here.
-      </div>
-
-    </div>
-
-    <section class="card page-card">
-
-      <div class="eyebrow">
-        CONTROLLED WORKSPACE
-      </div>
-
-      <div class="card-copy">
-        No simulated findings or reconciliation results are generated
-        by the frontend.
-      </div>
-
-    </section>
-
-  `;
-
-
-  typeALI(
-    getContextualALIMessage(),
-    context
-  );
-
-}
-
-
-/* ============================================================
-   RESET DATA
-============================================================ */
-
-function renderResetData() {
-
-  $("#content").innerHTML = `
-
-    ${backButton(
-      "Data Center",
-      "data-overview"
-    )}
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        DATA CENTER / CONTROL ACTION
-      </div>
-
-      <h1 class="page-title">
-        Reset Data
-      </h1>
-
-      <p class="page-description">
-        Resetting processed data is a controlled operation.
-        Dependent results may become STALE or INVALID and require
-        revalidation. Audit history is not silently removed.
-      </p>
-
-    </div>
-
-    <section class="card page-card">
-
-      <div class="card-title">
-        Reset workspace data
-      </div>
-
-      <div class="card-copy">
-        This action must be authorized by the backend.
-        The frontend will never directly delete authoritative
-        database state.
-      </div>
-
-      <div class="upload-actions">
-
-        <button
-          class="btn btn-danger"
-          onclick="requestResetData()"
-        >
-          Reset Data
-        </button>
-
-      </div>
-
-    </section>
-
-  `;
-
-}
-
-
-async function requestResetData() {
-
-  openConfirm(
-    "Reset workspace data?",
-    "This will request a controlled reset. Dependent results may become INVALID or STALE and require revalidation. Audit records remain protected.",
-    async () => {
-
-      await executeControlledMutation(
-        "/data/reset",
-        {
-          workspace_id:
-            state.workspace?.id
-        }
-      );
-
+    /* ------------------------------
+       ALI PANEL
+    ------------------------------ */
+
+    .ali-panel {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      width: min(440px, calc(100vw - 44px));
+      z-index: 180;
+      background: rgba(255,255,255,.96);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: 0 25px 80px rgba(17,24,39,.13);
+      overflow: hidden;
+      animation: aliIn 220ms ease;
     }
-  );
 
-}
+    @keyframes aliIn {
+      from {
+        opacity: 0;
+        transform: translateY(14px) scale(.98);
+      }
 
-
-/* ============================================================
-   DELETE DATA
-============================================================ */
-
-function renderDeleteData() {
-
-  $("#content").innerHTML = `
-
-    ${backButton(
-      "Data Center",
-      "data-overview"
-    )}
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        DATA CENTER / HIGH RISK
-      </div>
-
-      <h1 class="page-title">
-        Delete Data
-      </h1>
-
-      <p class="page-description">
-        Data deletion is a higher-risk operation.
-        Authorization, retention policy, legal hold and evidence
-        dependencies must be checked by the backend.
-      </p>
-
-    </div>
-
-    <section class="card page-card">
-
-      <div class="card-title">
-        Controlled deletion
-      </div>
-
-      <div class="card-copy">
-        The browser cannot bypass authorization or retention policy.
-      </div>
-
-      <div class="upload-actions">
-
-        <button
-          class="btn btn-danger"
-          onclick="requestDeleteData()"
-        >
-          Delete Data
-        </button>
-
-      </div>
-
-    </section>
-
-  `;
-
-}
-
-
-async function requestDeleteData() {
-
-  openConfirm(
-    "Delete workspace data?",
-    "This is a high-risk operation. Only the authorized backend can decide whether deletion is permitted. Evidence under retention or legal hold must not be deleted.",
-    async () => {
-
-      await executeControlledMutation(
-        "/data/delete",
-        {
-          workspace_id:
-            state.workspace?.id
-        }
-      );
-
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
     }
-  );
 
-}
+    .ali-head {
+      padding: 17px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+    }
 
+    .ali-title {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 12px;
+      font-weight: 700;
+    }
 
-/* ============================================================
-   REFRESH AUDIT
-============================================================ */
+    .ali-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
 
-function renderRefreshAudit() {
+    .ali-close {
+      width: 30px;
+      height: 30px;
+      border: 0;
+      background: #f3f4f6;
+      border-radius: 50%;
+    }
 
-  $("#content").innerHTML = `
+    .ali-body {
+      padding: 20px;
+    }
 
-    ${backButton(
-      "Data Center",
-      "data-overview"
-    )}
+    .ali-message {
+      color: #3f4650;
+      font-size: 14px;
+      line-height: 1.75;
+      min-height: 70px;
+    }
 
-    <div class="command-head">
+    .ali-context {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #eef0f2;
+      color: #9298a0;
+      font-size: 10px;
+      font-family: "JetBrains Mono", monospace;
+    }
 
-      <div class="eyebrow">
-        DATA CENTER / AUDIT
+    /* ------------------------------
+       RESPONSIVE
+    ------------------------------ */
+
+    @media (max-width: 1050px) {
+      .command-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .state-strip {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .route-options {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 780px) {
+      .app-shell {
+        display: block;
+      }
+
+      .sidebar {
+        width: min(290px, 86vw);
+        transform: translateX(-105%);
+        box-shadow: 20px 0 60px rgba(0,0,0,.08);
+      }
+
+      .sidebar.mobile-open {
+        transform: translateX(0);
+      }
+
+      .main {
+        margin-left: 0;
+      }
+
+      .mobile-menu-btn {
+        display: grid;
+        place-items: center;
+      }
+
+      .topbar {
+        padding: 0 16px;
+      }
+
+      .connection {
+        display: none;
+      }
+
+      .content {
+        padding: 30px 16px 70px;
+      }
+
+      .hero-title {
+        font-size: clamp(46px, 15vw, 72px);
+      }
+
+      .landing {
+        padding: 22px;
+      }
+
+      .landing-inner {
+        transform: none;
+      }
+
+      .state-strip {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .route-options {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .state-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-copy {
+        font-size: 14px;
+      }
+
+      .hero-actions {
+        flex-direction: column;
+      }
+
+      .hero-actions .btn {
+        width: min(280px, 100%);
+      }
+
+      .upload-card,
+      .ask-card {
+        min-height: auto;
+      }
+
+      .ali-panel {
+        right: 12px;
+        bottom: 12px;
+        width: calc(100vw - 24px);
+      }
+    }
+
+    /* collapsed desktop */
+    @media (min-width: 781px) {
+      .app-shell.sidebar-collapsed .sidebar {
+        width: 76px;
+      }
+
+      .app-shell.sidebar-collapsed .main {
+        margin-left: 76px;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar .brand-name,
+      .app-shell.sidebar-collapsed .nav-label,
+      .app-shell.sidebar-collapsed .nav-text,
+      .app-shell.sidebar-collapsed .user-meta {
+        display: none;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar-top {
+        justify-content: center;
+        padding: 0 10px;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar-top .collapse-btn {
+        position: absolute;
+        bottom: 14px;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar-brand {
+        display: block;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar-brand .brand {
+        gap: 0;
+      }
+
+      .app-shell.sidebar-collapsed .sidebar-footer {
+        display: flex;
+        justify-content: center;
+      }
+
+      .app-shell.sidebar-collapsed .user-mini {
+        padding: 0;
+      }
+
+      .app-shell.sidebar-collapsed .nav-item {
+        justify-content: center;
+        padding-left: 0;
+        padding-right: 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- =========================================================
+       LANDING
+  ========================================================== -->
+
+  <section id="landingView" class="landing">
+    <div class="landing-inner">
+
+      <div class="brand">
+        <div class="brand-mark">
+          <span>SA</span>
+        </div>
+        <div class="brand-name">SPECIAL ALI</div>
       </div>
 
-      <h1 class="page-title">
-        Refresh Audit
-      </h1>
+      <h1 class="hero-title">SPECIAL ALI</h1>
 
-      <p class="page-description">
-        Refresh Audit requests the backend to reload authoritative
-        execution, event and audit state.
+      <div class="hero-tagline">
+        Financial Control without the noise.
+      </div>
+
+      <p class="hero-copy">
+        A financial control operating system that connects data,
+        accounting, taxation, investigation, evidence and decisions
+        into one controlled workspace.
       </p>
 
-    </div>
-
-    <section class="card page-card">
-
-      <div class="card-title">
-        Synchronize audit state
-      </div>
-
-      <div class="card-copy">
-        This button does not merely refresh the browser.
-        It requests the backend audit state.
-      </div>
-
-      <div class="upload-actions">
-
+      <div class="hero-actions">
         <button
           class="btn btn-primary"
-          onclick="refreshAudit()"
+          type="button"
+          onclick="showAuth('signup')"
         >
-          Refresh Audit
+          Get Started
         </button>
-
-      </div>
-
-    </section>
-
-  `;
-
-}
-
-
-async function refreshAudit() {
-
-  try {
-
-    const result =
-      await apiRequest(
-        "/audit/refresh",
-        {
-          method: "POST",
-          body: {
-            workspace_id:
-              state.workspace?.id
-          }
-        }
-      );
-
-
-    showToast(
-      result?.message ||
-      "Audit state refreshed.",
-      "success"
-    );
-
-  } catch (error) {
-
-    showToast(
-      normalizeError(error),
-      "warning"
-    );
-
-  }
-
-}
-
-
-/* ============================================================
-   CONTROLLED MUTATION
-============================================================ */
-
-async function executeControlledMutation(
-  endpoint,
-  body
-) {
-
-  try {
-
-    const result =
-      await apiRequest(
-        endpoint,
-        {
-          method: "POST",
-          body: {
-            ...body,
-
-            idempotency_key:
-              crypto.randomUUID()
-          }
-        }
-      );
-
-
-    showToast(
-      result?.message ||
-      "Request accepted by backend.",
-      "success"
-    );
-
-  } catch (error) {
-
-    showToast(
-      normalizeError(error),
-      "error"
-    );
-
-  }
-
-}
-
-
-/* ============================================================
-   ACCOUNT
-============================================================ */
-
-function renderAccount() {
-
-  const fullName =
-    state.profile?.full_name ||
-    state.user?.user_metadata?.full_name ||
-    "User";
-
-
-  const email =
-    state.user?.email ||
-    "—";
-
-
-  const role =
-    state.profile?.role ||
-    state.workspace?.role ||
-    "Member";
-
-
-  $("#content").innerHTML = `
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        SETTINGS / ACCOUNT
-      </div>
-
-      <h1 class="page-title">
-        Account
-      </h1>
-
-      <p class="page-description">
-        Identity and session information.
-      </p>
-
-    </div>
-
-    <section class="card page-card">
-
-      <div class="table-wrap">
-
-        <table>
-
-          <tbody>
-
-            <tr>
-              <th>Full Name</th>
-              <td>
-                ${escapeHTML(fullName)}
-              </td>
-            </tr>
-
-            <tr>
-              <th>Email</th>
-              <td>
-                ${escapeHTML(email)}
-              </td>
-            </tr>
-
-            <tr>
-              <th>Role</th>
-              <td>
-                ${escapeHTML(role)}
-              </td>
-            </tr>
-
-            <tr>
-              <th>Account Status</th>
-              <td>
-                ${
-                  state.user
-                    ? "Authenticated"
-                    : "Signed out"
-                }
-              </td>
-            </tr>
-
-            <tr>
-              <th>Email Verification</th>
-              <td>
-                ${
-                  state.user?.email_confirmed_at
-                    ? "Verified"
-                    : "Not verified"
-                }
-              </td>
-            </tr>
-
-            <tr>
-              <th>Last Sign-in</th>
-              <td>
-                ${
-                  state.user?.last_sign_in_at
-                    ? new Date(
-                        state.user.last_sign_in_at
-                      ).toLocaleString()
-                    : "—"
-                }
-              </td>
-            </tr>
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-      <div class="upload-actions">
-
-        <button
-          class="btn btn-danger"
-          onclick="logout()"
-        >
-          Sign out
-        </button>
-
-      </div>
-
-    </section>
-
-  `;
-
-}
-
-
-/* ============================================================
-   GENERIC PAGES
-============================================================ */
-
-function renderGenericPage(
-  route
-) {
-
-  const definition =
-    ROUTES[route];
-
-
-  if (!definition) {
-
-    navigate("ali");
-
-    return;
-
-  }
-
-
-  const section =
-    definition.section;
-
-
-  let back =
-    null;
-
-
-  if (
-    definition.parent
-  ) {
-
-    back =
-      definition.parent;
-
-  } else if (
-    section === "WORK"
-  ) {
-
-    back =
-      "work";
-
-  }
-
-
-  $("#content").innerHTML = `
-
-    ${
-      back
-        ? backButton(
-            ROUTES[back]?.title ||
-            "Back",
-            back
-          )
-        : ""
-    }
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        ${escapeHTML(section)}
-      </div>
-
-      <h1 class="page-title">
-        ${escapeHTML(
-          definition.title
-        )}
-      </h1>
-
-      <p class="page-description">
-        This workspace is connected to the SPECIAL ALI control architecture.
-        Authoritative data will be rendered from Supabase/API state.
-      </p>
-
-    </div>
-
-    <section class="card page-card">
-
-      <div class="eyebrow">
-        BACKEND STATE
-      </div>
-
-      <div class="card-title">
-        Ready for authoritative data
-      </div>
-
-      <div class="card-copy">
-        No fake numbers are displayed here. When the backend returns
-        validated records, this page will render those records and
-        their evidence, rule, calculation, validation and proof status.
-      </div>
-
-    </section>
-
-  `;
-
-}
-
-
-/* ============================================================
-   BACK BUTTON
-============================================================ */
-
-function backButton(
-  label,
-  route
-) {
-
-  return `
-
-    <button
-      class="back-nav"
-      type="button"
-      onclick="navigate('${route}')"
-    >
-      ← ${escapeHTML(label)}
-    </button>
-
-  `;
-
-}
-
-
-/* ============================================================
-   SIDEBAR
-============================================================ */
-
-function toggleSidebar() {
-
-  if (
-    window.innerWidth <= 780
-  ) {
-
-    toggleMobileSidebar();
-
-    return;
-
-  }
-
-
-  state.sidebarCollapsed =
-    !state.sidebarCollapsed;
-
-
-  localStorage.setItem(
-    "special_ali_sidebar",
-    state.sidebarCollapsed
-      ? "collapsed"
-      : "expanded"
-  );
-
-
-  applySidebarState();
-
-}
-
-
-function applySidebarState() {
-
-  const shell =
-    $("#appView");
-
-
-  if (!shell) {
-    return;
-  }
-
-
-  shell.classList.toggle(
-    "sidebar-collapsed",
-    state.sidebarCollapsed
-  );
-
-}
-
-
-function toggleMobileSidebar() {
-
-  const sidebar =
-    $("#sidebar");
-
-
-  const overlay =
-    $("#drawerOverlay");
-
-
-  if (
-    !sidebar ||
-    !overlay
-  ) {
-    return;
-  }
-
-
-  state.mobileNavOpen =
-    !state.mobileNavOpen;
-
-
-  sidebar.classList.toggle(
-    "mobile-open",
-    state.mobileNavOpen
-  );
-
-
-  overlay.classList.toggle(
-    "active",
-    state.mobileNavOpen
-  );
-
-}
-
-
-function closeMobileSidebar() {
-
-  state.mobileNavOpen =
-    false;
-
-
-  $("#sidebar")
-    ?.classList
-    .remove(
-      "mobile-open"
-    );
-
-
-  $("#drawerOverlay")
-    ?.classList
-    .remove(
-      "active"
-    );
-
-}
-
-
-function handleResize() {
-
-  if (
-    window.innerWidth > 780
-  ) {
-
-    closeMobileSidebar();
-
-  }
-
-}
-
-
-/* ============================================================
-   CONFIRMATION
-============================================================ */
-
-function openConfirm(
-  title,
-  message,
-  action
-) {
-
-  state.pendingConfirmation =
-    action;
-
-
-  $("#confirmTitle").textContent =
-    title;
-
-
-  $("#confirmMessage").textContent =
-    message;
-
-
-  $("#confirmModal")
-    .classList
-    .remove(
-      "hidden"
-    );
-
-
-  $("#confirmActionBtn").onclick =
-    async () => {
-
-      closeConfirm();
-
-
-      if (
-        typeof state.pendingConfirmation ===
-        "function"
-      ) {
-
-        await state.pendingConfirmation();
-
-      }
-
-
-      state.pendingConfirmation =
-        null;
-
-    };
-
-}
-
-
-function closeConfirm() {
-
-  $("#confirmModal")
-    .classList
-    .add(
-      "hidden"
-    );
-
-
-  state.pendingConfirmation =
-    null;
-
-}
-
-
-/* ============================================================
-   TOAST
-============================================================ */
-
-function showToast(
-  message,
-  type = "info"
-) {
-
-  const container =
-    $("#toastContainer");
-
-
-  if (!container) {
-    return;
-  }
-
-
-  const toast =
-    document.createElement(
-      "div"
-    );
-
-
-  toast.className =
-    `toast ${type}`;
-
-
-  toast.textContent =
-    message;
-
-
-  container.appendChild(
-    toast
-  );
-
-
-  setTimeout(
-    () => toast.remove(),
-    4200
-  );
-
-}
-
-
-/* ============================================================
-   CONNECTION
-============================================================ */
-
-function setConnection(
-  online,
-  text
-) {
-
-  const connection =
-    $("#connection");
-
-
-  if (!connection) {
-    return;
-  }
-
-
-  connection.classList.toggle(
-    "online",
-    online
-  );
-
-
-  const connectionText =
-    $("#connectionText");
-
-
-  if (connectionText) {
-
-    connectionText.textContent =
-      text;
-
-  }
-
-}
-
-
-/* ============================================================
-   API CLIENT
-============================================================ */
-
-async function apiRequest(
-  endpoint,
-  options = {},
-  requireAuth = true
-) {
-
-  if (
-    !state.backendConfigured
-  ) {
-
-    throw new Error(
-      "Backend belum dikonfigurasi."
-    );
-
-  }
-
-
-  let token =
-    null;
-
-
-  if (
-    requireAuth
-  ) {
-
-    const {
-      data
-    } =
-      await supabaseClient.auth.getSession();
-
-
-    if (
-      !data?.session
-    ) {
-
-      throw new Error(
-        "Authentication session tidak tersedia."
-      );
-
-    }
-
-
-    token =
-      data.session.access_token;
-
-  }
-
-
-  const method =
-    options.method ||
-    "GET";
-
-
-  const headers = {
-
-    "Content-Type":
-      "application/json",
-
-    "Accept":
-      "application/json"
-
-  };
-
-
-  if (token) {
-
-    headers.Authorization =
-      `Bearer ${token}`;
-
-  }
-
-
-  const response =
-    await fetch(
-      `${CONFIG.API_BASE}${endpoint}`,
-      {
-        method,
-        headers,
-        body:
-          method === "GET" ||
-          method === "HEAD"
-            ? undefined
-            : JSON.stringify(
-                options.body || {}
-              )
-      }
-    );
-
-
-  let payload =
-    null;
-
-
-  const contentType =
-    response.headers.get(
-      "content-type"
-    ) || "";
-
-
-  if (
-    contentType.includes(
-      "application/json"
-    )
-  ) {
-
-    payload =
-      await response.json();
-
-  } else {
-
-    const text =
-      await response.text();
-
-
-    payload =
-      text
-        ? {
-            message: text
-          }
-        : null;
-
-  }
-
-
-  if (
-    !response.ok
-  ) {
-
-    const error =
-      new Error(
-        payload?.message ||
-        `API request failed (${response.status})`
-      );
-
-
-    error.status =
-      response.status;
-
-
-    error.payload =
-      payload;
-
-
-    throw error;
-
-  }
-
-
-  return payload;
-
-}
-
-
-/* ============================================================
-   ERROR NORMALIZATION
-============================================================ */
-
-function normalizeError(
-  error
-) {
-
-  if (!error) {
-    return "Unknown error.";
-  }
-
-
-  if (
-    error.message
-  ) {
-
-    return error.message;
-
-  }
-
-
-  return String(error);
-
-}
-
-
-/* ============================================================
-   UTILS
-============================================================ */
-
-function sleep(
-  ms
-) {
-
-  return new Promise(
-    resolve =>
-      setTimeout(
-        resolve,
-        ms
-      )
-  );
-
-}
-
-
-function randomFrom(
-  array
-) {
-
-  return array[
-    Math.floor(
-      Math.random() *
-      array.length
-    )
-  ];
-
-}
-
-
-function escapeHTML(
-  value
-) {
-
-  return String(
-    value ?? ""
-  )
-    .replaceAll(
-      "&",
-      "&amp;"
-    )
-    .replaceAll(
-      "<",
-      "&lt;"
-    )
-    .replaceAll(
-      ">",
-      "&gt;"
-    )
-    .replaceAll(
-      '"',
-      "&quot;"
-    )
-    .replaceAll(
-      "'",
-      "&#039;"
-    );
-
-}
-
-
-/* ============================================================
-   PROCESSING ERROR
-============================================================ */
-
-function renderProcessingError(
-  error
-) {
-
-  $("#content").innerHTML = `
-
-    <div class="command-head">
-
-      <div class="eyebrow">
-        DATA INGESTION
-      </div>
-
-      <h1 class="page-title">
-        Processing stopped.
-      </h1>
-
-      <p class="page-description">
-        ALI could not confirm that the ingestion pipeline completed.
-        No successful result is being displayed as a substitute.
-      </p>
-
-    </div>
-
-    <section class="card page-card">
-
-      <div
-        style="
-          color:#c93636;
-          font-size:13px;
-          line-height:1.6;
-        "
-      >
-        ${escapeHTML(
-          normalizeError(error)
-        )}
-      </div>
-
-      <div class="upload-actions">
 
         <button
           class="btn btn-soft"
-          onclick="navigate('ingestion')"
+          type="button"
+          onclick="showAuth('signin')"
         >
-          Back to Ingestion
+          Sign In
+        </button>
+      </div>
+
+      <button
+        class="learn-link"
+        type="button"
+        onclick="showLearnMore()"
+      >
+        <strong>Learn more.</strong>
+        Control the numbers. Understand why. Keep the proof.
+      </button>
+
+    </div>
+  </section>
+
+
+  <!-- =========================================================
+       LEARN MORE
+  ========================================================== -->
+
+  <section id="learnView" class="landing hidden">
+    <div class="landing-inner">
+
+      <div class="brand">
+        <div class="brand-mark">
+          <span>SA</span>
+        </div>
+        <div class="brand-name">SPECIAL ALI</div>
+      </div>
+
+      <h1 class="hero-title" style="font-size:clamp(42px,7vw,76px)">
+        Financial control,<br />
+        with a reason.
+      </h1>
+
+      <p class="hero-copy" style="font-size:17px">
+        SPECIAL ALI does not treat a number as truth simply because
+        it exists in a spreadsheet.
+        Every important result should have a source, evidence,
+        rule, calculation, validation and trace.
+      </p>
+
+      <p class="hero-copy">
+        ALI can reason, investigate, explain and orchestrate work.
+        The authoritative state remains in the controlled backend.
+      </p>
+
+      <div class="hero-actions">
+        <button
+          class="btn btn-primary"
+          type="button"
+          onclick="showAuth('signup')"
+        >
+          Get Started
+        </button>
+
+        <button
+          class="btn btn-link"
+          type="button"
+          onclick="showLanding()"
+        >
+          ← Back
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- =========================================================
+       AUTH
+  ========================================================== -->
+
+  <div id="authModal" class="modal-backdrop hidden">
+    <div class="modal">
+
+      <h3 id="authTitle">Welcome to SPECIAL ALI</h3>
+
+      <p id="authDescription">
+        Sign in to continue to your workspace.
+      </p>
+
+      <form id="authForm" style="margin-top:22px">
+
+        <div id="nameField" class="hidden">
+          <label class="eyebrow">Full name</label>
+          <input
+            id="authName"
+            type="text"
+            autocomplete="name"
+            style="
+              width:100%;
+              margin-top:8px;
+              border:1px solid #e5e7eb;
+              border-radius:12px;
+              padding:13px;
+              outline:none;
+            "
+          />
+        </div>
+
+        <div style="margin-top:16px">
+          <label class="eyebrow">Email</label>
+          <input
+            id="authEmail"
+            type="email"
+            required
+            autocomplete="email"
+            style="
+              width:100%;
+              margin-top:8px;
+              border:1px solid #e5e7eb;
+              border-radius:12px;
+              padding:13px;
+              outline:none;
+            "
+          />
+        </div>
+
+        <div style="margin-top:16px">
+          <label class="eyebrow">Password</label>
+          <input
+            id="authPassword"
+            type="password"
+            required
+            autocomplete="current-password"
+            style="
+              width:100%;
+              margin-top:8px;
+              border:1px solid #e5e7eb;
+              border-radius:12px;
+              padding:13px;
+              outline:none;
+            "
+          />
+        </div>
+
+        <div
+          id="authError"
+          class="hidden"
+          style="
+            margin-top:13px;
+            color:#c93636;
+            font-size:12px;
+            line-height:1.5;
+          "
+        ></div>
+
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="btn btn-soft"
+            onclick="closeAuth()"
+          >
+            Cancel
+          </button>
+
+          <button
+            id="authSubmit"
+            type="submit"
+            class="btn btn-primary"
+          >
+            Continue
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+
+  <!-- =========================================================
+       APP
+  ========================================================== -->
+
+  <section id="appView" class="app-shell hidden">
+
+    <aside id="sidebar" class="sidebar">
+
+      <div class="sidebar-top">
+
+        <div class="sidebar-brand">
+          <button
+            class="brand"
+            type="button"
+            style="border:0;background:transparent;padding:0"
+            onclick="toggleALI(true)"
+            title="Open ALI"
+          >
+            <div class="brand-mark">
+              <span>SA</span>
+            </div>
+            <div class="brand-name">SPECIAL ALI</div>
+          </button>
+        </div>
+
+        <button
+          id="collapseBtn"
+          class="collapse-btn"
+          type="button"
+          onclick="toggleSidebar()"
+          title="Collapse sidebar"
+        >
+          ‹
         </button>
 
       </div>
 
-    </section>
+      <div class="sidebar-scroll">
 
-  `;
+        <!-- ALI -->
+        <div class="nav-section">
 
+          <div class="nav-label">ALI</div>
 
-  typeALI(
-    "Saya belum bisa menyatakan data berhasil diproses. Kita berhenti di sini sampai execution backend memberikan status yang valid.",
-    "INGESTION_BLOCKED"
-  );
+          <button
+            class="nav-item"
+            data-route="ali"
+            onclick="navigate('ali')"
+          >
+            <span class="nav-icon">✦</span>
+            <span class="nav-text">Ask ALI</span>
+          </button>
 
-}
+          <button
+            class="nav-item"
+            data-route="tasks"
+            onclick="navigate('tasks')"
+          >
+            <span class="nav-icon">◷</span>
+            <span class="nav-text">Tasks</span>
+          </button>
 
+          <button
+            class="nav-item"
+            data-route="action-center"
+            onclick="navigate('action-center')"
+          >
+            <span class="nav-icon">!</span>
+            <span class="nav-text">Action Center</span>
+          </button>
 
-/* ============================================================
-   GLOBAL KEYBOARD SHORTCUT
-   Ctrl/Cmd + K
-============================================================ */
+          <button
+            class="nav-item"
+            data-route="activity"
+            onclick="navigate('activity')"
+          >
+            <span class="nav-icon">↺</span>
+            <span class="nav-text">Activity</span>
+          </button>
 
-document.addEventListener(
-  "keydown",
-  event => {
-
-    if (
-      (event.ctrlKey ||
-        event.metaKey) &&
-      event.key.toLowerCase() === "k"
-    ) {
-
-      event.preventDefault();
-
-      toggleALI(true);
-
-
-      const input =
-        $("#aliInput");
-
-
-      if (input) {
-        input.focus();
-      }
-
-    }
-
-
-    if (
-      event.key === "Escape"
-    ) {
-
-      closeMobileSidebar();
+        </div>
 
 
-      if (
-        $("#confirmModal") &&
-        !$("#confirmModal")
-          .classList
-          .contains("hidden")
-      ) {
+        <!-- WORK -->
+        <div class="nav-section">
 
-        closeConfirm();
+          <div class="nav-label">WORK</div>
 
-      }
+          <button
+            class="nav-item"
+            data-route="work"
+            onclick="navigate('work')"
+          >
+            <span class="nav-icon">⌘</span>
+            <span class="nav-text">Work</span>
+          </button>
 
-    }
+          <button
+            class="nav-item"
+            data-route="investigation"
+            onclick="navigate('investigation')"
+          >
+            <span class="nav-icon">⌕</span>
+            <span class="nav-text">Investigation</span>
+          </button>
 
-  }
-);
+          <button
+            class="nav-item"
+            data-route="reconciliation"
+            onclick="navigate('reconciliation')"
+          >
+            <span class="nav-icon">⇄</span>
+            <span class="nav-text">Reconciliation</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-route="findings"
+            onclick="navigate('findings')"
+          >
+            <span class="nav-icon">◉</span>
+            <span class="nav-text">Findings</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-route="exceptions"
+            onclick="navigate('exceptions')"
+          >
+            <span class="nav-icon">△</span>
+            <span class="nav-text">Exceptions</span>
+          </button>
+
+          <button
+            class="nav-item"
+            data-route="unresolved"
+            onclick="navigate('unresolved')"
+          >
+            <span class="nav-icon">?</span>
+            <span class="nav-text">Unresolved</span>
+          </button>
+
+        </div>
 
 
-/* ============================================================
-   SECURITY / UI BOUNDARY NOTE
+        <!-- ACCOUNTING -->
+        <div class="nav-section">
 
-   IMPORTANT:
+          <div class="nav-label">ACCOUNTING</div>
 
-   Never put:
-   - service_role key
-   - database password
-   - private API secret
-   - OpenAI private server key
-   - OCR provider secret
+          <button class="nav-item" data-route="accounting-overview" onclick="navigate('accounting-overview')">
+            <span class="nav-icon">▦</span><span class="nav-text">Overview</span>
+          </button>
 
-   into this file.
+          <button class="nav-item" data-route="transactions" onclick="navigate('transactions')">
+            <span class="nav-icon">≡</span><span class="nav-text">Transactions</span>
+          </button>
 
-   Browser receives only:
-   - Supabase public anon key
-   - authenticated session
-   - data authorized by RLS/API.
+          <button class="nav-item" data-route="journal" onclick="navigate('journal')">
+            <span class="nav-icon">J</span><span class="nav-text">Journal</span>
+          </button>
 
-   All authoritative mutations happen server-side.
-============================================================ */
+          <button class="nav-item" data-route="ledger" onclick="navigate('ledger')">
+            <span class="nav-icon">L</span><span class="nav-text">Ledger</span>
+          </button>
+
+          <button class="nav-item" data-route="accounts" onclick="navigate('accounts')">
+            <span class="nav-icon">A</span><span class="nav-text">Accounts</span>
+          </button>
+
+          <button class="nav-item" data-route="receivables" onclick="navigate('receivables')">
+            <span class="nav-icon">AR</span><span class="nav-text">Receivables</span>
+          </button>
+
+          <button class="nav-item" data-route="payables" onclick="navigate('payables')">
+            <span class="nav-icon">AP</span><span class="nav-text">Payables</span>
+          </button>
+
+          <button class="nav-item" data-route="inventory" onclick="navigate('inventory')">
+            <span class="nav-icon">IN</span><span class="nav-text">Inventory</span>
+          </button>
+
+          <button class="nav-item" data-route="fixed-assets" onclick="navigate('fixed-assets')">
+            <span class="nav-icon">FA</span><span class="nav-text">Fixed Assets</span>
+          </button>
+
+          <button class="nav-item" data-route="adjustments" onclick="navigate('adjustments')">
+            <span class="nav-icon">±</span><span class="nav-text">Adjustments</span>
+          </button>
+
+          <button class="nav-item" data-route="period-close" onclick="navigate('period-close')">
+            <span class="nav-icon">✓</span><span class="nav-text">Period Close</span>
+          </button>
+
+          <button class="nav-item" data-route="financial-reports" onclick="navigate('financial-reports')">
+            <span class="nav-icon">▥</span><span class="nav-text">Financial Reports</span>
+          </button>
+
+        </div>
 
 
-/* ============================================================
-   OPTIONAL PUBLIC HELPERS
-============================================================ */
+        <!-- TAX -->
+        <div class="nav-section">
 
-window.SPECIAL_ALI = {
+          <div class="nav-label">TAX</div>
 
-  navigate,
+          <button class="nav-item" data-route="tax-overview" onclick="navigate('tax-overview')">
+            <span class="nav-icon">%</span><span class="nav-text">Tax Overview</span>
+          </button>
 
-  toggleALI,
+          <button class="nav-item" data-route="tax-data" onclick="navigate('tax-data')">
+            <span class="nav-icon">TD</span><span class="nav-text">Tax Data</span>
+          </button>
 
-  openFilePicker,
+          <button class="nav-item" data-route="tax-calculations" onclick="navigate('tax-calculations')">
+            <span class="nav-icon">TC</span><span class="nav-text">Tax Calculations</span>
+          </button>
 
-  logout,
+          <button class="nav-item" data-route="tax-reconciliation" onclick="navigate('tax-reconciliation')">
+            <span class="nav-icon">TR</span><span class="nav-text">Tax Reconciliation</span>
+          </button>
 
-  showAuth,
+          <button class="nav-item" data-route="tax-rules" onclick="navigate('tax-rules')">
+            <span class="nav-icon">R</span><span class="nav-text">Tax Rules</span>
+          </button>
 
-  closeAuth,
+          <button class="nav-item" data-route="tax-issues" onclick="navigate('tax-issues')">
+            <span class="nav-icon">!</span><span class="nav-text">Tax Issues</span>
+          </button>
 
-  requestPasswordReset
+          <button class="nav-item" data-route="tax-reports" onclick="navigate('tax-reports')">
+            <span class="nav-icon">TX</span><span class="nav-text">Tax Reports / Export</span>
+          </button>
 
-};
+        </div>
+
+
+        <!-- DATA CENTER -->
+        <div class="nav-section">
+
+          <div class="nav-label">DATA CENTER</div>
+
+          <button class="nav-item" data-route="data-overview" onclick="navigate('data-overview')">
+            <span class="nav-icon">◫</span><span class="nav-text">Overview</span>
+          </button>
+
+          <button class="nav-item" data-route="sources" onclick="navigate('sources')">
+            <span class="nav-icon">S</span><span class="nav-text">Sources</span>
+          </button>
+
+          <button class="nav-item" data-route="documents" onclick="navigate('documents')">
+            <span class="nav-icon">□</span><span class="nav-text">Documents</span>
+          </button>
+
+          <button class="nav-item" data-route="ingestion" onclick="navigate('ingestion')">
+            <span class="nav-icon">↓</span><span class="nav-text">Ingestion</span>
+          </button>
+
+          <button class="nav-item" data-route="ocr" onclick="navigate('ocr')">
+            <span class="nav-icon">OCR</span><span class="nav-text">OCR / Extraction</span>
+          </button>
+
+          <button class="nav-item" data-route="data-validation" onclick="navigate('data-validation')">
+            <span class="nav-icon">✓</span><span class="nav-text">Data Validation</span>
+          </button>
+
+          <button class="nav-item" data-route="data-health" onclick="navigate('data-health')">
+            <span class="nav-icon">♥</span><span class="nav-text">Data Health</span>
+          </button>
+
+          <button class="nav-item" data-route="duplicates" onclick="navigate('duplicates')">
+            <span class="nav-icon">≋</span><span class="nav-text">Duplicates</span>
+          </button>
+
+          <button class="nav-item" data-route="reset-data" onclick="navigate('reset-data')">
+            <span class="nav-icon">↻</span><span class="nav-text">Reset Data</span>
+          </button>
+
+          <button class="nav-item" data-route="delete-data" onclick="navigate('delete-data')">
+            <span class="nav-icon">⌫</span><span class="nav-text">Delete Data</span>
+          </button>
+
+          <button class="nav-item" data-route="refresh-audit" onclick="navigate('refresh-audit')">
+            <span class="nav-icon">⟳</span><span class="nav-text">Refresh Audit</span>
+          </button>
+
+        </div>
+
+
+        <!-- EVIDENCE -->
+        <div class="nav-section">
+
+          <div class="nav-label">EVIDENCE</div>
+
+          <button class="nav-item" data-route="evidence-registry" onclick="navigate('evidence-registry')">
+            <span class="nav-icon">E</span><span class="nav-text">Evidence Registry</span>
+          </button>
+
+          <button class="nav-item" data-route="proof" onclick="navigate('proof')">
+            <span class="nav-icon">P</span><span class="nav-text">Proof</span>
+          </button>
+
+          <button class="nav-item" data-route="conflicts" onclick="navigate('conflicts')">
+            <span class="nav-icon">!</span><span class="nav-text">Conflicts</span>
+          </button>
+
+        </div>
+
+
+        <!-- HUMAN GATE -->
+        <div class="nav-section">
+
+          <div class="nav-label">HUMAN GATE</div>
+
+          <button class="nav-item" data-route="pending-approval" onclick="navigate('pending-approval')">
+            <span class="nav-icon">○</span><span class="nav-text">Pending Approval</span>
+          </button>
+
+          <button class="nav-item" data-route="decisions" onclick="navigate('decisions')">
+            <span class="nav-icon">✓</span><span class="nav-text">Decisions</span>
+          </button>
+
+          <button class="nav-item" data-route="decision-history" onclick="navigate('decision-history')">
+            <span class="nav-icon">↺</span><span class="nav-text">Decision History</span>
+          </button>
+
+        </div>
+
+
+        <!-- REPORTS -->
+        <div class="nav-section">
+
+          <div class="nav-label">REPORTS</div>
+
+          <button class="nav-item" data-route="control-report" onclick="navigate('control-report')">
+            <span class="nav-icon">C</span><span class="nav-text">Control Report</span>
+          </button>
+
+          <button class="nav-item" data-route="accounting-report" onclick="navigate('accounting-report')">
+            <span class="nav-icon">A</span><span class="nav-text">Accounting Report</span>
+          </button>
+
+          <button class="nav-item" data-route="tax-report" onclick="navigate('tax-report')">
+            <span class="nav-icon">T</span><span class="nav-text">Tax Report</span>
+          </button>
+
+          <button class="nav-item" data-route="audit-report" onclick="navigate('audit-report')">
+            <span class="nav-icon">R</span><span class="nav-text">Audit Report</span>
+          </button>
+
+        </div>
+
+
+        <!-- AUDIT -->
+        <div class="nav-section">
+
+          <div class="nav-label">AUDIT</div>
+
+          <button class="nav-item" data-route="execution-log" onclick="navigate('execution-log')">
+            <span class="nav-icon">EL</span><span class="nav-text">Execution Log</span>
+          </button>
+
+          <button class="nav-item" data-route="event-log" onclick="navigate('event-log')">
+            <span class="nav-icon">EV</span><span class="nav-text">Event Log</span>
+          </button>
+
+          <button class="nav-item" data-route="audit-trail" onclick="navigate('audit-trail')">
+            <span class="nav-icon">AT</span><span class="nav-text">Audit Trail</span>
+          </button>
+
+        </div>
+
+
+        <!-- SETTINGS -->
+        <div class="nav-section">
+
+          <div class="nav-label">SETTINGS</div>
+
+          <button class="nav-item" data-route="account" onclick="navigate('account')">
+            <span class="nav-icon">AC</span><span class="nav-text">Account</span>
+          </button>
+
+          <button class="nav-item" data-route="workspace" onclick="navigate('workspace')">
+            <span class="nav-icon">W</span><span class="nav-text">Workspace</span>
+          </button>
+
+          <button class="nav-item" data-route="members" onclick="navigate('members')">
+            <span class="nav-icon">M</span><span class="nav-text">Members & Roles</span>
+          </button>
+
+          <button class="nav-item" data-route="permissions" onclick="navigate('permissions')">
+            <span class="nav-icon">K</span><span class="nav-text">Permissions</span>
+          </button>
+
+          <button class="nav-item" data-route="accounting-settings" onclick="navigate('accounting-settings')">
+            <span class="nav-icon">A</span><span class="nav-text">Accounting</span>
+          </button>
+
+          <button class="nav-item" data-route="tax-settings" onclick="navigate('tax-settings')">
+            <span class="nav-icon">T</span><span class="nav-text">Tax</span>
+          </button>
+
+          <button class="nav-item" data-route="integrations" onclick="navigate('integrations')">
+            <span class="nav-icon">↔</span><span class="nav-text">Integrations</span>
+          </button>
+
+          <button class="nav-item" data-route="preferences" onclick="navigate('preferences')">
+            <span class="nav-icon">⚙</span><span class="nav-text">Preferences</span>
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <div class="sidebar-footer">
+
+        <button
+          class="user-mini"
+          style="width:100%;border:0;background:transparent;text-align:left"
+          onclick="navigate('account')"
+        >
+          <div id="sidebarAvatar" class="avatar">U</div>
+
+          <div class="user-meta">
+            <div id="sidebarUserName" class="user-name">User</div>
+            <div id="sidebarUserRole" class="user-role">Member</div>
+          </div>
+        </button>
+
+      </div>
+
+    </aside>
+
+
+    <div
+      id="drawerOverlay"
+      class="drawer-overlay"
+      onclick="closeMobileSidebar()"
+    ></div>
+
+
+    <main class="main">
+
+      <header class="topbar">
+
+        <div class="topbar-left">
+
+          <button
+            class="mobile-menu-btn"
+            type="button"
+            onclick="toggleMobileSidebar()"
+            aria-label="Open navigation"
+          >
+            ☰
+          </button>
+
+          <div id="topbarTitle" class="topbar-title">
+            ALI Command Center
+          </div>
+
+        </div>
+
+        <div class="topbar-right">
+
+          <div id="connection" class="connection">
+            <span class="connection-dot"></span>
+            <span id="connectionText">Checking connection</span>
+          </div>
+
+          <button
+            class="account-btn"
+            type="button"
+            onclick="navigate('account')"
+          >
+            <div id="topAvatar" class="avatar">U</div>
+            <span id="topUserName" style="font-size:12px;font-weight:600">
+              User
+            </span>
+          </button>
+
+        </div>
+
+      </header>
+
+
+      <div id="content" class="content"></div>
+
+    </main>
+
+  </section>
+
+
+  <!-- =========================================================
+       ALI PANEL
+  ========================================================== -->
+
+  <div id="aliPanel" class="ali-panel hidden">
+
+    <div class="ali-head">
+
+      <div class="ali-title">
+        <span class="ali-dot"></span>
+        ALI
+      </div>
+
+      <button
+        class="ali-close"
+        type="button"
+        onclick="toggleALI(false)"
+        aria-label="Hide ALI"
+      >
+        ×
+      </button>
+
+    </div>
+
+    <div class="ali-body">
+
+      <div id="aliMessage" class="ali-message"></div>
+
+      <div id="aliContext" class="ali-context"></div>
+
+    </div>
+
+  </div>
+
+
+  <!-- =========================================================
+       CONFIRMATION MODAL
+  ========================================================== -->
+
+  <div id="confirmModal" class="modal-backdrop hidden">
+
+    <div class="modal">
+
+      <h3 id="confirmTitle">Confirm action</h3>
+
+      <p id="confirmMessage">
+        Please confirm this action.
+      </p>
+
+      <div class="modal-actions">
+
+        <button
+          class="btn btn-soft"
+          type="button"
+          onclick="closeConfirm()"
+        >
+          Cancel
+        </button>
+
+        <button
+          id="confirmActionBtn"
+          class="btn btn-danger"
+          type="button"
+        >
+          Confirm
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <input
+    id="fileInput"
+    type="file"
+    multiple
+    hidden
+    accept="
+      .pdf,
+      .jpg,
+      .jpeg,
+      .png,
+      .webp,
+      .tiff,
+      .bmp,
+      .xlsx,
+      .xls,
+      .csv,
+      .ods,
+      .docx,
+      .doc,
+      .txt,
+      .rtf,
+      .md,
+      .json,
+      .xml
+    "
+  />
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="./app.js"></script>
+  <script src="./control-center.js"></script>
+
+</body>
+</html>
