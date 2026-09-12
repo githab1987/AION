@@ -1,5 +1,6 @@
 /* ============================================================
-   SPECIAL ALI Financial Control Operating System
+   SPECIAL ALI
+   Financial Control Operating System
 
    Frontend responsibilities:
    - UI
@@ -32,12 +33,11 @@
 const CONFIG = {
   SUPABASE_URL:
     "https://dqbnqvskfgcjktexpcym.supabase.co",
-
   SUPABASE_ANON_KEY:
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxYm5xdnNrZmdjamt0ZXhwY3ltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5MzcxMzQsImV4cCI6MjEwNDUxMzEzNH0.5c3e6bEPKjVDhDdMESWFgWy1Ym0UIpTYNJc7O35Rpng",
-
   API_BASE:
-    window.SPECIAL_ALI_API_BASE || "/api/v1",
+    window.SPECIAL_ALI_API_BASE ||
+    "/api/v1",
 
   STORAGE_BUCKET:
     "evidence"
@@ -62,18 +62,17 @@ function initSupabase() {
     return false;
   }
 
-  supabaseClient =
-    window.supabase.createClient(
-      CONFIG.SUPABASE_URL,
-      CONFIG.SUPABASE_ANON_KEY,
-      {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true
-        }
+  supabaseClient = window.supabase.createClient(
+    CONFIG.SUPABASE_URL,
+    CONFIG.SUPABASE_ANON_KEY,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
       }
-    );
+    }
+  );
 
   return true;
 }
@@ -92,19 +91,25 @@ const state = {
   profile: null,
   workspace: null,
 
+  /*
+    Password recovery state.
+
+    This prevents the recovery session from being
+    treated as a normal authenticated application session.
+  */
   recoveryMode: false,
 
   route: "ali",
 
   sidebarCollapsed:
-    localStorage.getItem(
-      "special_ali_sidebar"
-    ) === "collapsed",
+    localStorage.getItem("special_ali_sidebar") === "collapsed",
 
   mobileNavOpen: false,
 
   aliVisible: false,
+
   aliOpenCount: 0,
+
   aliLastContext: null,
 
   processing: false,
@@ -525,7 +530,6 @@ document.addEventListener(
       initSupabase();
 
     bindEvents();
-
     applySidebarState();
 
     if (!state.backendConfigured) {
@@ -578,8 +582,22 @@ async function restoreSession() {
 
   try {
 
+    /*
+      Register listener BEFORE getSession().
+
+      This is important because Supabase can emit
+      PASSWORD_RECOVERY while processing the recovery link.
+    */
+
     supabaseClient.auth.onAuthStateChange(
       async (event, session) => {
+
+        /*
+          PASSWORD_RECOVERY must NEVER immediately open
+          the normal application dashboard.
+
+          It opens the existing auth modal in recovery mode.
+        */
 
         if (
           event === "PASSWORD_RECOVERY"
@@ -592,12 +610,20 @@ async function restoreSession() {
           return;
         }
 
+
+        /*
+          While the user is changing the password,
+          do not let SIGNED_IN or TOKEN_REFRESHED
+          open the application automatically.
+        */
+
         if (
           state.recoveryMode
         ) {
 
           return;
         }
+
 
         if (session) {
 
@@ -619,8 +645,17 @@ async function restoreSession() {
       }
     );
 
+
+    /*
+      Check whether this URL is a Supabase recovery URL.
+
+      We intentionally inspect only the type.
+      Tokens are never logged or displayed.
+    */
+
     const recoveryFromURL =
       isRecoveryURL();
+
 
     const {
       data,
@@ -629,10 +664,13 @@ async function restoreSession() {
       await supabaseClient.auth.getSession();
 
     if (error) {
-
       throw error;
-
     }
+
+
+    /*
+      Recovery URL takes priority over normal session.
+    */
 
     if (recoveryFromURL) {
 
@@ -642,6 +680,7 @@ async function restoreSession() {
 
       return;
     }
+
 
     if (data?.session) {
 
@@ -684,6 +723,13 @@ function isRecoveryURL() {
         window.location.href
       );
 
+    /*
+      Supabase recovery links can use
+      query parameters or hash parameters.
+
+      We only inspect "type".
+    */
+
     const queryType =
       url.searchParams.get(
         "type"
@@ -692,10 +738,9 @@ function isRecoveryURL() {
     if (
       queryType === "recovery"
     ) {
-
       return true;
-
     }
+
 
     const hash =
       url.hash.replace(
@@ -704,9 +749,7 @@ function isRecoveryURL() {
       );
 
     if (!hash) {
-
       return false;
-
     }
 
     const hashParams =
@@ -736,12 +779,14 @@ async function applyAuthenticatedSession(
   session
 ) {
 
+  /*
+    Never apply a recovery session as normal app session.
+  */
+
   if (
     state.recoveryMode
   ) {
-
     return;
-
   }
 
   state.session =
@@ -757,22 +802,13 @@ async function applyAuthenticatedSession(
 
   updateUserIdentity();
 
+
+  /*
+    Profile/workspace data should come from backend.
+    Never manufacture role/workspace authority in UI.
+  */
+
   try {
-
-    /*
-      IMPORTANT:
-
-      /me is the authentication bootstrap endpoint.
-
-      It needs the Bearer token but does NOT yet
-      have a workspace ID.
-
-      apiRequest(false) therefore means:
-      workspace header is not required.
-
-      It does NOT mean:
-      authentication token is omitted.
-    */
 
     const result =
       await apiRequest(
@@ -786,12 +822,10 @@ async function applyAuthenticatedSession(
     if (result) {
 
       state.profile =
-        result.profile ||
-        null;
+        result.profile || null;
 
       state.workspace =
-        result.workspace ||
-        null;
+        result.workspace || null;
 
     }
 
@@ -804,20 +838,14 @@ async function applyAuthenticatedSession(
 
   }
 
-    updateUserIdentity();
+  updateUserIdentity();
 
-       showApp();
+  showApp();
 
-       await navigate("ali");
+  await navigate("ali");
 
-    setTimeout(
-  () => {
-    ensureSPECIALALIRecoveryUI();
-     
-     renderSPECIALALIWelcome();
-  },
-  0
-);
+}
+
 
 /* ============================================================
    AUTH UI
@@ -825,6 +853,7 @@ async function applyAuthenticatedSession(
 
 let authMode =
   "signin";
+
 
 function showAuth(
   mode = "signin"
@@ -840,24 +869,25 @@ function showAuth(
     $("#authModal");
 
   if (!modal) {
-
     return;
-
   }
 
   modal.classList.remove(
     "hidden"
   );
 
+
   $("#authTitle").textContent =
     mode === "signup"
       ? "Create your SPECIAL ALI account"
       : "Welcome back";
 
+
   $("#authDescription").textContent =
     mode === "signup"
       ? "Create your account and start a controlled workspace."
       : "Sign in to continue to your workspace.";
+
 
   $("#nameField")
     ?.classList
@@ -866,16 +896,17 @@ function showAuth(
       mode !== "signup"
     );
 
+
   $("#authSubmit").textContent =
     mode === "signup"
       ? "Create Account"
       : "Sign In";
 
+
   $("#authError")
     ?.classList
-    .add(
-      "hidden"
-    );
+    .add("hidden");
+
 
   clearRecoveryFields();
 
@@ -898,26 +929,31 @@ function showPasswordRecovery() {
     $("#authModal");
 
   if (!modal) {
-
     return;
-
   }
 
   modal.classList.remove(
     "hidden"
   );
 
+
   $("#authTitle").textContent =
     "Set a new password";
+
 
   $("#authDescription").textContent =
     "Create a new password for your SPECIAL ALI account.";
 
+
   $("#nameField")
     ?.classList
-    .add(
-      "hidden"
-    );
+    .add("hidden");
+
+
+  /*
+    Existing password field is reused as
+    the NEW password field.
+  */
 
   const passwordField =
     $("#authPassword");
@@ -938,16 +974,25 @@ function showPasswordRecovery() {
 
   }
 
+
+  /*
+    The existing auth form is preserved.
+
+    We insert only one additional confirmation
+    field immediately after the password field.
+  */
+
   ensureRecoveryConfirmField();
+
 
   $("#authSubmit").textContent =
     "Update Password";
 
+
   $("#authError")
     ?.classList
-    .add(
-      "hidden"
-    );
+    .add("hidden");
+
 
   setConnection(
     true,
@@ -966,18 +1011,14 @@ function ensureRecoveryConfirmField() {
   if (
     $("#authPasswordConfirm")
   ) {
-
     return;
-
   }
 
   const passwordInput =
     $("#authPassword");
 
   if (!passwordInput) {
-
     return;
-
   }
 
   const wrapper =
@@ -991,7 +1032,9 @@ function ensureRecoveryConfirmField() {
   wrapper.style.marginTop =
     "12px";
 
+
   wrapper.innerHTML = `
+
     <input
       id="authPasswordConfirm"
       type="password"
@@ -1002,12 +1045,15 @@ function ensureRecoveryConfirmField() {
         box-sizing:border-box;
       "
     >
+
   `;
 
-  passwordInput.parentNode?.insertBefore(
-    wrapper,
-    passwordInput.nextSibling
-  );
+
+  passwordInput.parentNode
+    ?.insertBefore(
+      wrapper,
+      passwordInput.nextSibling
+    );
 
 }
 
@@ -1022,9 +1068,7 @@ function clearRecoveryFields() {
     $("#authPasswordConfirmWrapper");
 
   if (wrapper) {
-
     wrapper.remove();
-
   }
 
   const passwordInput =
@@ -1057,9 +1101,7 @@ function closeAuth() {
 
   $("#authModal")
     ?.classList
-    .add(
-      "hidden"
-    );
+    .add("hidden");
 
 }
 
@@ -1074,6 +1116,7 @@ async function handleAuthSubmit(
 
   event.preventDefault();
 
+
   if (
     !state.backendConfigured
   ) {
@@ -1084,8 +1127,12 @@ async function handleAuthSubmit(
     );
 
     return;
-
   }
+
+
+  /*
+    PASSWORD RECOVERY
+  */
 
   if (
     state.recoveryMode ||
@@ -1098,16 +1145,19 @@ async function handleAuthSubmit(
 
   }
 
+
   const email =
     $("#authEmail")
       ?.value
       .trim() ||
     "";
 
+
   const password =
     $("#authPassword")
       ?.value ||
     "";
+
 
   const name =
     $("#authName")
@@ -1115,62 +1165,60 @@ async function handleAuthSubmit(
       .trim() ||
     "";
 
+
   const errorBox =
     $("#authError");
+
 
   errorBox?.classList.add(
     "hidden"
   );
 
+
   const submitButton =
     $("#authSubmit");
 
+
   if (submitButton) {
-
-    submitButton.disabled =
-      true;
-
+    submitButton.disabled = true;
   }
+
 
   try {
 
     let result;
+
 
     if (
       authMode === "signup"
     ) {
 
       result =
-        await supabaseClient.auth.signUp(
-          {
-            email,
-            password,
-            options: {
-              data: {
-                full_name:
-                  name
-              }
+        await supabaseClient.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name
             }
           }
-        );
+        });
 
     } else {
 
       result =
-        await supabaseClient.auth.signInWithPassword(
-          {
-            email,
-            password
-          }
-        );
+        await supabaseClient.auth.signInWithPassword({
+          email,
+          password
+        });
 
     }
+
 
     if (result.error) {
-
       throw result.error;
-
     }
+
 
     if (
       authMode === "signup" &&
@@ -1185,8 +1233,8 @@ async function handleAuthSubmit(
       );
 
       return;
-
     }
+
 
     closeAuth();
 
@@ -1208,10 +1256,8 @@ async function handleAuthSubmit(
   } finally {
 
     if (submitButton) {
-
       submitButton.disabled =
         false;
-
     }
 
   }
@@ -1230,20 +1276,32 @@ async function handlePasswordRecovery() {
       ?.value ||
     "";
 
+
   const confirmation =
     $("#authPasswordConfirm")
       ?.value ||
     "";
 
+
   const errorBox =
     $("#authError");
+
 
   const submitButton =
     $("#authSubmit");
 
+
   errorBox?.classList.add(
     "hidden"
   );
+
+
+  /*
+    Basic client-side checks.
+
+    Supabase remains authoritative for
+    the actual password update.
+  */
 
   if (
     password.length < 6
@@ -1257,6 +1315,7 @@ async function handlePasswordRecovery() {
 
   }
 
+
   if (
     password !== confirmation
   ) {
@@ -1269,7 +1328,10 @@ async function handlePasswordRecovery() {
 
   }
 
-  if (!supabaseClient) {
+
+  if (
+    !supabaseClient
+  ) {
 
     showAuthError(
       "Supabase belum tersedia."
@@ -1279,12 +1341,11 @@ async function handlePasswordRecovery() {
 
   }
 
+
   if (submitButton) {
-
-    submitButton.disabled =
-      true;
-
+    submitButton.disabled = true;
   }
+
 
   try {
 
@@ -1292,17 +1353,15 @@ async function handlePasswordRecovery() {
       data,
       error
     } =
-      await supabaseClient.auth.updateUser(
-        {
-          password
-        }
-      );
+      await supabaseClient.auth.updateUser({
+        password
+      });
+
 
     if (error) {
-
       throw error;
-
     }
+
 
     if (!data?.user) {
 
@@ -1311,6 +1370,13 @@ async function handlePasswordRecovery() {
       );
 
     }
+
+
+    /*
+      Password has been accepted by Supabase Auth.
+      Do not keep the recovery session as an
+      application session.
+    */
 
     state.recoveryMode =
       false;
@@ -1327,20 +1393,31 @@ async function handlePasswordRecovery() {
     state.workspace =
       null;
 
+
     await supabaseClient.auth.signOut();
+
 
     closeAuth();
 
     clearRecoveryFields();
 
+
     showLanding();
+
 
     showToast(
       "Password berhasil diperbarui. Silakan Sign In dengan password baru.",
       "success"
     );
 
+
+    /*
+      Remove recovery parameters from browser URL
+      without navigating away.
+    */
+
     cleanRecoveryURL();
+
 
   } catch (error) {
 
@@ -1353,10 +1430,7 @@ async function handlePasswordRecovery() {
   } finally {
 
     if (submitButton) {
-
-      submitButton.disabled =
-        false;
-
+      submitButton.disabled = false;
     }
 
   }
@@ -1376,9 +1450,7 @@ function showAuthError(
     $("#authError");
 
   if (!errorBox) {
-
     return;
-
   }
 
   errorBox.textContent =
@@ -1408,18 +1480,27 @@ function cleanRecoveryURL() {
       "type"
     );
 
+
+    /*
+      Remove the hash completely.
+
+      Recovery tokens must never remain visible
+      in the browser URL after completion.
+    */
+
     url.hash =
       "";
+
 
     window.history.replaceState(
       {},
       document.title,
       url.pathname +
-        (
-          url.search
-            ? `?${url.searchParams.toString()}`
-            : ""
-        )
+      (
+        url.search
+          ? `?${url.searchParams.toString()}`
+          : ""
+      )
     );
 
   } catch {
@@ -1436,7 +1517,7 @@ function cleanRecoveryURL() {
 
 /* ============================================================
    FORGOT PASSWORD
-============================================================ */
+   ============================================================ */
 
 async function requestPasswordReset() {
 
@@ -1453,11 +1534,13 @@ async function requestPasswordReset() {
 
   }
 
+
   const email =
     $("#authEmail")
       ?.value
       .trim() ||
     "";
+
 
   if (!email) {
 
@@ -1469,11 +1552,13 @@ async function requestPasswordReset() {
 
   }
 
+
   try {
 
     const redirectTo =
       window.location.origin +
       window.location.pathname;
+
 
     const {
       error
@@ -1485,11 +1570,11 @@ async function requestPasswordReset() {
         }
       );
 
+
     if (error) {
-
       throw error;
-
     }
+
 
     showToast(
       "Email reset password telah dikirim. Periksa inbox Anda.",
@@ -1523,6 +1608,7 @@ async function logout() {
 
   }
 
+
   try {
 
     const {
@@ -1530,11 +1616,16 @@ async function logout() {
     } =
       await supabaseClient.auth.signOut();
 
+
     if (error) {
-
       throw error;
-
     }
+
+
+    /*
+      Session is intentionally removed only by logout.
+      Closing/reloading the app does NOT call signOut.
+    */
 
   } catch (error) {
 
@@ -1558,21 +1649,15 @@ function showLanding() {
 
   $("#landingView")
     ?.classList
-    .remove(
-      "hidden"
-    );
+    .remove("hidden");
 
   $("#learnView")
     ?.classList
-    .add(
-      "hidden"
-    );
+    .add("hidden");
 
   $("#appView")
     ?.classList
-    .add(
-      "hidden"
-    );
+    .add("hidden");
 
   closeMobileSidebar();
 
@@ -1585,21 +1670,15 @@ function showLearnMore() {
 
   $("#landingView")
     ?.classList
-    .add(
-      "hidden"
-    );
+    .add("hidden");
 
   $("#learnView")
     ?.classList
-    .remove(
-      "hidden"
-    );
+    .remove("hidden");
 
   $("#appView")
     ?.classList
-    .add(
-      "hidden"
-    );
+    .add("hidden");
 
 }
 
@@ -1608,21 +1687,15 @@ function showApp() {
 
   $("#landingView")
     ?.classList
-    .add(
-      "hidden"
-    );
+    .add("hidden");
 
   $("#learnView")
     ?.classList
-    .add(
-      "hidden"
-    );
+    .add("hidden");
 
   $("#appView")
     ?.classList
-    .remove(
-      "hidden"
-    );
+    .remove("hidden");
 
   updateUserIdentity();
 
@@ -1636,10 +1709,9 @@ function showApp() {
 function updateUserIdentity() {
 
   if (!state.user) {
-
     return;
-
   }
+
 
   const fullName =
     state.profile?.full_name ||
@@ -1647,13 +1719,16 @@ function updateUserIdentity() {
     state.user.email?.split("@")[0] ||
     "User";
 
+
   const role =
     state.profile?.role ||
     state.workspace?.role ||
     "Member";
 
+
   const initials =
     getInitials(fullName);
+
 
   $("#sidebarUserName").textContent =
     fullName;
@@ -1673,17 +1748,14 @@ function updateUserIdentity() {
 }
 
 
-function getInitials(
-  name
-) {
+function getInitials(name) {
 
   return name
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map(
-      part =>
-        part[0]
+      part => part[0]
     )
     .join("")
     .toUpperCase();
@@ -1695,30 +1767,28 @@ function getInitials(
    NAVIGATION
 ============================================================ */
 
-async function navigate(
-  route
-) {
+async function navigate(route) {
 
   if (!ROUTES[route]) {
-
-    route =
-      "ali";
-
+    route = "ali";
   }
+
 
   state.route =
     route;
 
+
   updateActiveNavigation();
+
 
   $("#topbarTitle").textContent =
     ROUTES[route].title;
 
+
   closeMobileSidebar();
 
-  await renderRoute(
-    route
-  );
+
+  await renderRoute(route);
 
 }
 
@@ -1731,7 +1801,7 @@ function updateActiveNavigation() {
       button.classList.toggle(
         "active",
         button.dataset.route ===
-          state.route
+        state.route
       );
 
     }
@@ -1740,9 +1810,7 @@ function updateActiveNavigation() {
 }
 
 
-async function renderRoute(
-  route
-) {
+async function renderRoute(route) {
 
   switch (route) {
 
@@ -1818,15 +1886,19 @@ async function renderCommandCenter() {
     state.user?.user_metadata?.full_name?.split(" ")[0] ||
     "there";
 
+
   const greeting =
     getTimeGreeting();
+
 
   const hasData =
     Boolean(
       state.workspace?.has_data
     );
 
+
   $("#content").innerHTML = `
+
     <div class="command-head">
 
       <div class="eyebrow">
@@ -1855,6 +1927,7 @@ async function renderCommandCenter() {
       ></div>
 
     </div>
+
 
     <div class="command-grid">
 
@@ -1909,6 +1982,7 @@ async function renderCommandCenter() {
 
       </section>
 
+
       <section class="card ask-card">
 
         <div class="eyebrow">
@@ -1948,13 +2022,13 @@ async function renderCommandCenter() {
 
     </div>
 
+
     <div class="state-strip">
 
       <div class="state-card">
         <div class="state-value">
           ${hasData ? "—" : "0"}
         </div>
-
         <div class="state-label">
           Processed documents
         </div>
@@ -1964,7 +2038,6 @@ async function renderCommandCenter() {
         <div class="state-value">
           ${hasData ? "—" : "0"}
         </div>
-
         <div class="state-label">
           Transactions
         </div>
@@ -1974,7 +2047,6 @@ async function renderCommandCenter() {
         <div class="state-value">
           ${hasData ? "—" : "0"}
         </div>
-
         <div class="state-label">
           Unresolved
         </div>
@@ -1984,14 +2056,15 @@ async function renderCommandCenter() {
         <div class="state-value">
           ${hasData ? "—" : "Ready"}
         </div>
-
         <div class="state-label">
           Control state
         </div>
       </div>
 
     </div>
+
   `;
+
 
   typeALI(
     `${greeting} ${escapeHTML(firstName)}. ${
@@ -2014,17 +2087,16 @@ function getTimeGreeting() {
   const hour =
     new Date().getHours();
 
+
   if (hour < 11) {
-
     return "Good morning.";
-
   }
+
 
   if (hour < 17) {
-
     return "Good afternoon.";
-
   }
+
 
   return "Good evening.";
 
@@ -2035,37 +2107,40 @@ function getTimeGreeting() {
    ALI TOGGLE
 ============================================================ */
 
-function toggleALI(
-  force
-) {
+function toggleALI(force) {
 
   const shouldOpen =
     typeof force === "boolean"
       ? force
       : !state.aliVisible;
 
+
   state.aliVisible =
     shouldOpen;
+
 
   const panel =
     $("#aliPanel");
 
+
   if (!panel) {
-
     return;
-
   }
+
 
   if (shouldOpen) {
 
     state.aliOpenCount++;
 
+
     panel.classList.remove(
       "hidden"
     );
 
+
     const message =
       getContextualALIMessage();
+
 
     typeALI(
       message,
@@ -2077,6 +2152,7 @@ function toggleALI(
     panel.classList.add(
       "hidden"
     );
+
 
     state.aliLastContext =
       `HIDDEN_AFTER_${state.route}`;
@@ -2091,6 +2167,7 @@ function getContextualALIMessage() {
   const route =
     state.route;
 
+
   if (
     state.aliOpenCount > 1 &&
     state.aliLastContext === route
@@ -2102,8 +2179,10 @@ function getContextualALIMessage() {
 
   }
 
+
   state.aliLastContext =
     route;
+
 
   if (
     route === "findings"
@@ -2115,6 +2194,7 @@ function getContextualALIMessage() {
 
   }
 
+
   if (
     route === "reconciliation"
   ) {
@@ -2124,6 +2204,7 @@ function getContextualALIMessage() {
     );
 
   }
+
 
   if (
     route === "unresolved"
@@ -2135,6 +2216,7 @@ function getContextualALIMessage() {
 
   }
 
+
   if (
     route.startsWith("tax-")
   ) {
@@ -2144,6 +2226,7 @@ function getContextualALIMessage() {
     );
 
   }
+
 
   if (
     route === "transactions" ||
@@ -2159,6 +2242,7 @@ function getContextualALIMessage() {
 
   }
 
+
   if (
     route === "work" ||
     ROUTES[route]?.parent === "work"
@@ -2169,6 +2253,7 @@ function getContextualALIMessage() {
     );
 
   }
+
 
   return randomFrom(
     ALI_MESSAGES.commandCenter
@@ -2184,6 +2269,7 @@ function getContextualALIMessage() {
 let aliTypingTimer =
   null;
 
+
 function typeALI(
   message,
   context = ""
@@ -2193,20 +2279,23 @@ function typeALI(
     aliTypingTimer
   );
 
+
   const output =
     $("#aliMessage");
+
 
   const contextOutput =
     $("#aliContext");
 
+
   if (!output) {
-
     return;
-
   }
+
 
   output.textContent =
     "";
+
 
   if (contextOutput) {
 
@@ -2215,8 +2304,10 @@ function typeALI(
 
   }
 
+
   let index =
     0;
+
 
   aliTypingTimer =
     setInterval(
@@ -2229,6 +2320,7 @@ function typeALI(
           );
 
         index++;
+
 
         if (
           index > message.length
@@ -2256,17 +2348,19 @@ async function submitALIRequest() {
   const input =
     $("#aliInput");
 
+
   const response =
     $("#askResponse");
 
+
   if (!input) {
-
     return;
-
   }
+
 
   const message =
     input.value.trim();
+
 
   if (!message) {
 
@@ -2279,10 +2373,13 @@ async function submitALIRequest() {
 
   }
 
+
   toggleALI(true);
+
 
   response.textContent =
     "ALI is checking the request...";
+
 
   try {
 
@@ -2300,13 +2397,15 @@ async function submitALIRequest() {
         }
       );
 
+
     response.textContent =
       result?.message ||
       "Request accepted by ALI.";
 
+
     typeALI(
       result?.message ||
-        "Request diterima. Saya akan memprosesnya melalui execution layer.",
+      "Request diterima. Saya akan memprosesnya melalui execution layer.",
       "AGENT_REQUEST"
     );
 
@@ -2315,10 +2414,12 @@ async function submitALIRequest() {
     response.textContent =
       "ALI belum dapat menjalankan request ini karena execution backend belum tersedia.";
 
+
     typeALI(
       "Saya belum akan berpura-pura sudah mengerjakannya. Execution backend belum mengembalikan hasil.",
       "BACKEND_BOUNDARY"
     );
+
 
     showToast(
       normalizeError(error),
@@ -2347,17 +2448,19 @@ async function handleFilesSelected(
 
   const files =
     Array.from(
-      event.target.files || []
+      event.target.files ||
+      []
     );
 
+
   if (!files.length) {
-
     return;
-
   }
+
 
   state.uploadFiles =
     files;
+
 
   typeALI(
     randomFrom(
@@ -2365,6 +2468,7 @@ async function handleFilesSelected(
     ),
     "DATA_INTAKE"
   );
+
 
   await processUploadSelection(
     files
@@ -2380,6 +2484,7 @@ async function processUploadSelection(
   renderProcessingPage(
     files
   );
+
 
   try {
 
@@ -2413,6 +2518,7 @@ async function processUploadSelection(
         }
       );
 
+
     if (!result) {
 
       throw new Error(
@@ -2420,6 +2526,7 @@ async function processUploadSelection(
       );
 
     }
+
 
     if (
       result.upload_urls
@@ -2432,6 +2539,7 @@ async function processUploadSelection(
 
     }
 
+
     if (
       result.execution_id
     ) {
@@ -2442,10 +2550,12 @@ async function processUploadSelection(
 
     }
 
+
     state.workspace = {
       ...(state.workspace || {}),
       has_data: true
     };
+
 
     await navigate(
       "ingestion"
@@ -2482,8 +2592,10 @@ async function uploadFilesToSignedUrls(
     const file =
       files[i];
 
+
     const target =
       uploadUrls[i];
+
 
     if (!target) {
 
@@ -2492,6 +2604,7 @@ async function uploadFilesToSignedUrls(
       );
 
     }
+
 
     const response =
       await fetch(
@@ -2506,6 +2619,7 @@ async function uploadFilesToSignedUrls(
           body: file
         }
       );
+
 
     if (!response.ok) {
 
@@ -2529,6 +2643,7 @@ function renderProcessingPage(
 ) {
 
   $("#content").innerHTML = `
+
     <div class="command-head">
 
       <div class="eyebrow">
@@ -2554,40 +2669,43 @@ function renderProcessingPage(
 
       ${files.map(
         (file, index) => `
-          <div class="processing-row">
 
-            <div>
+        <div class="processing-row">
 
-              <div
-                style="
-                  font-size:13px;
-                  font-weight:600
-                "
-              >
-                ${escapeHTML(file.name)}
-              </div>
+          <div>
 
-              <div
-                id="processing-${index}"
-                class="progress"
-              >
-                <span></span>
-              </div>
-
+            <div
+              style="
+                font-size:13px;
+                font-weight:600
+              "
+            >
+              ${escapeHTML(file.name)}
             </div>
 
             <div
-              id="status-${index}"
-              class="status"
+              id="processing-${index}"
+              class="progress"
             >
-              Waiting
+              <span></span>
             </div>
 
           </div>
-        `
+
+          <div
+            id="status-${index}"
+            class="status"
+          >
+            Waiting
+          </div>
+
+        </div>
+
+      `
       ).join("")}
 
     </section>
+
   `;
 
 }
@@ -2604,6 +2722,7 @@ async function monitorExecution(
   let finished =
     false;
 
+
   while (!finished) {
 
     const result =
@@ -2616,22 +2735,25 @@ async function monitorExecution(
         }
       );
 
+
     if (!result) {
-
       break;
-
     }
+
 
     const execution =
       result.execution ||
       result;
 
+
     const status =
       execution.status;
+
 
     updateExecutionUI(
       execution
     );
+
 
     finished =
       [
@@ -2642,6 +2764,7 @@ async function monitorExecution(
       ].includes(
         status
       );
+
 
     if (!finished) {
 
@@ -2664,27 +2787,32 @@ function updateExecutionUI(
     execution.steps ||
     [];
 
+
   steps.forEach(
-    (step, index) => {
+    (
+      step,
+      index
+    ) => {
 
       const bar =
         document.querySelector(
           `#processing-${index} span`
         );
 
+
       const status =
         document.querySelector(
           `#status-${index}`
         );
 
+
       if (
         !bar ||
         !status
       ) {
-
         return;
-
       }
+
 
       const progress =
         Number(
@@ -2692,18 +2820,23 @@ function updateExecutionUI(
           0
         );
 
+
       bar.style.width =
-        `${Math.max(
-          0,
-          Math.min(
-            100,
-            progress
+        `${
+          Math.max(
+            0,
+            Math.min(
+              100,
+              progress
+            )
           )
-        )}%`;
+        }%`;
+
 
       status.textContent =
         step.status ||
         "Processing";
+
 
       status.className =
         `status ${
@@ -2729,6 +2862,7 @@ function updateExecutionUI(
 function renderIngestion() {
 
   $("#content").innerHTML = `
+
     ${backButton(
       "Data Center",
       "data-overview"
@@ -2774,6 +2908,7 @@ function renderIngestion() {
       </div>
 
     </section>
+
   `;
 
 }
@@ -2786,6 +2921,7 @@ function renderIngestion() {
 function renderOCR() {
 
   $("#content").innerHTML = `
+
     ${backButton(
       "Data Center",
       "data-overview"
@@ -2868,6 +3004,7 @@ function renderOCR() {
       </div>
 
     </section>
+
   `;
 
 }
@@ -2880,6 +3017,7 @@ function renderOCR() {
 function renderWork() {
 
   $("#content").innerHTML = `
+
     <div class="command-head">
 
       <div class="eyebrow">
@@ -2930,6 +3068,7 @@ function renderWork() {
       )}
 
     </section>
+
   `;
 
 }
@@ -2942,6 +3081,7 @@ function workCard(
 ) {
 
   return `
+
     <button
       class="card"
       style="
@@ -2964,11 +3104,11 @@ function workCard(
         class="card-title"
         style="margin-top:9px"
       >
-        ${escapeHTML(title)}
+        ${title}
       </div>
 
       <div class="card-copy">
-        ${escapeHTML(description)}
+        ${description}
       </div>
 
       <div
@@ -2982,6 +3122,7 @@ function workCard(
       </div>
 
     </button>
+
   `;
 
 }
@@ -3053,6 +3194,7 @@ function renderWorkChild(
 ) {
 
   $("#content").innerHTML = `
+
     ${backButton(
       "Work",
       "work"
@@ -3061,15 +3203,15 @@ function renderWorkChild(
     <div class="command-head">
 
       <div class="eyebrow">
-        WORK / ${escapeHTML(context)}
+        WORK / ${context}
       </div>
 
       <h1 class="page-title">
-        ${escapeHTML(title)}
+        ${title}
       </h1>
 
       <p class="page-description">
-        ${escapeHTML(description)}
+        ${description}
       </p>
 
       <div class="ali-line">
@@ -3090,7 +3232,9 @@ function renderWorkChild(
       </div>
 
     </section>
+
   `;
+
 
   typeALI(
     getContextualALIMessage(),
@@ -3107,6 +3251,7 @@ function renderWorkChild(
 function renderResetData() {
 
   $("#content").innerHTML = `
+
     ${backButton(
       "Data Center",
       "data-overview"
@@ -3154,6 +3299,7 @@ function renderResetData() {
       </div>
 
     </section>
+
   `;
 
 }
@@ -3187,6 +3333,7 @@ async function requestResetData() {
 function renderDeleteData() {
 
   $("#content").innerHTML = `
+
     ${backButton(
       "Data Center",
       "data-overview"
@@ -3232,6 +3379,7 @@ function renderDeleteData() {
       </div>
 
     </section>
+
   `;
 
 }
@@ -3265,6 +3413,7 @@ async function requestDeleteData() {
 function renderRefreshAudit() {
 
   $("#content").innerHTML = `
+
     ${backButton(
       "Data Center",
       "data-overview"
@@ -3310,6 +3459,7 @@ function renderRefreshAudit() {
       </div>
 
     </section>
+
   `;
 
 }
@@ -3331,9 +3481,10 @@ async function refreshAudit() {
         }
       );
 
+
     showToast(
       result?.message ||
-        "Audit state refreshed.",
+      "Audit state refreshed.",
       "success"
     );
 
@@ -3374,9 +3525,10 @@ async function executeControlledMutation(
         }
       );
 
+
     showToast(
       result?.message ||
-        "Request accepted by backend.",
+      "Request accepted by backend.",
       "success"
     );
 
@@ -3403,16 +3555,20 @@ function renderAccount() {
     state.user?.user_metadata?.full_name ||
     "User";
 
+
   const email =
     state.user?.email ||
     "—";
+
 
   const role =
     state.profile?.role ||
     state.workspace?.role ||
     "Member";
 
+
   $("#content").innerHTML = `
+
     <div class="command-head">
 
       <div class="eyebrow">
@@ -3511,6 +3667,7 @@ function renderAccount() {
       </div>
 
     </section>
+
   `;
 
 }
@@ -3527,6 +3684,7 @@ function renderGenericPage(
   const definition =
     ROUTES[route];
 
+
   if (!definition) {
 
     navigate("ali");
@@ -3535,13 +3693,18 @@ function renderGenericPage(
 
   }
 
+
   const section =
     definition.section;
+
 
   let back =
     null;
 
-  if (definition.parent) {
+
+  if (
+    definition.parent
+  ) {
 
     back =
       definition.parent;
@@ -3555,12 +3718,14 @@ function renderGenericPage(
 
   }
 
+
   $("#content").innerHTML = `
+
     ${
       back
         ? backButton(
             ROUTES[back]?.title ||
-              "Back",
+            "Back",
             back
           )
         : ""
@@ -3602,6 +3767,7 @@ function renderGenericPage(
       </div>
 
     </section>
+
   `;
 
 }
@@ -3617,6 +3783,7 @@ function backButton(
 ) {
 
   return `
+
     <button
       class="back-nav"
       type="button"
@@ -3624,6 +3791,7 @@ function backButton(
     >
       ← ${escapeHTML(label)}
     </button>
+
   `;
 
 }
@@ -3645,8 +3813,10 @@ function toggleSidebar() {
 
   }
 
+
   state.sidebarCollapsed =
     !state.sidebarCollapsed;
+
 
   localStorage.setItem(
     "special_ali_sidebar",
@@ -3654,6 +3824,7 @@ function toggleSidebar() {
       ? "collapsed"
       : "expanded"
   );
+
 
   applySidebarState();
 
@@ -3665,11 +3836,11 @@ function applySidebarState() {
   const shell =
     $("#appView");
 
+
   if (!shell) {
-
     return;
-
   }
+
 
   shell.classList.toggle(
     "sidebar-collapsed",
@@ -3684,25 +3855,28 @@ function toggleMobileSidebar() {
   const sidebar =
     $("#sidebar");
 
+
   const overlay =
     $("#drawerOverlay");
+
 
   if (
     !sidebar ||
     !overlay
   ) {
-
     return;
-
   }
+
 
   state.mobileNavOpen =
     !state.mobileNavOpen;
+
 
   sidebar.classList.toggle(
     "mobile-open",
     state.mobileNavOpen
   );
+
 
   overlay.classList.toggle(
     "active",
@@ -3717,11 +3891,13 @@ function closeMobileSidebar() {
   state.mobileNavOpen =
     false;
 
+
   $("#sidebar")
     ?.classList
     .remove(
       "mobile-open"
     );
+
 
   $("#drawerOverlay")
     ?.classList
@@ -3758,11 +3934,14 @@ function openConfirm(
   state.pendingConfirmation =
     action;
 
+
   $("#confirmTitle").textContent =
     title;
 
+
   $("#confirmMessage").textContent =
     message;
+
 
   $("#confirmModal")
     .classList
@@ -3770,10 +3949,12 @@ function openConfirm(
       "hidden"
     );
 
+
   $("#confirmActionBtn").onclick =
     async () => {
 
       closeConfirm();
+
 
       if (
         typeof state.pendingConfirmation ===
@@ -3783,6 +3964,7 @@ function openConfirm(
         await state.pendingConfirmation();
 
       }
+
 
       state.pendingConfirmation =
         null;
@@ -3799,6 +3981,7 @@ function closeConfirm() {
     .add(
       "hidden"
     );
+
 
   state.pendingConfirmation =
     null;
@@ -3818,26 +4001,30 @@ function showToast(
   const container =
     $("#toastContainer");
 
+
   if (!container) {
-
     return;
-
   }
+
 
   const toast =
     document.createElement(
       "div"
     );
 
+
   toast.className =
     `toast ${type}`;
+
 
   toast.textContent =
     message;
 
+
   container.appendChild(
     toast
   );
+
 
   setTimeout(
     () => toast.remove(),
@@ -3859,19 +4046,21 @@ function setConnection(
   const connection =
     $("#connection");
 
+
   if (!connection) {
-
     return;
-
   }
+
 
   connection.classList.toggle(
     "online",
     online
   );
 
+
   const connectionText =
     $("#connectionText");
+
 
   if (connectionText) {
 
@@ -3885,32 +4074,6 @@ function setConnection(
 
 /* ============================================================
    API CLIENT
-
-   IMPORTANT AUTH DESIGN:
-
-   requireAuth = true
-     → session MUST exist
-     → Bearer token sent
-     → workspace header sent when available
-
-   requireAuth = false
-     → session is OPTIONAL
-     → BUT if a session exists, Bearer token is STILL sent
-     → workspace header is NOT required
-
-   This is required for /me bootstrap.
-
-   /me needs:
-     Bearer token
-       ↓
-     identify user
-       ↓
-     find workspace
-       ↓
-     return workspace
-
-   It cannot require X-Workspace-Id before the workspace
-   has been discovered.
 ============================================================ */
 
 async function apiRequest(
@@ -3930,67 +4093,35 @@ async function apiRequest(
   }
 
 
-  /* ----------------------------------------------------------
-     ALWAYS TRY TO GET THE CURRENT SUPABASE SESSION.
-
-     requireAuth controls whether authentication is mandatory.
-     It does NOT control whether an existing token is sent.
-  ---------------------------------------------------------- */
-
-  let session =
+  let token =
     null;
 
+
   if (
-    supabaseClient
+    requireAuth
   ) {
 
     const {
-      data,
-      error
+      data
     } =
       await supabaseClient.auth.getSession();
 
-    if (error) {
 
-      console.warn(
-        "Supabase session lookup failed:",
-        error
+    if (
+      !data?.session
+    ) {
+
+      throw new Error(
+        "Authentication session tidak tersedia."
       );
-
-    } else {
-
-      session =
-        data?.session ||
-        null;
 
     }
 
-  }
 
-
-  /* ----------------------------------------------------------
-     PROTECTED REQUESTS REQUIRE A SESSION.
-  ---------------------------------------------------------- */
-
-  if (
-    requireAuth &&
-    !session
-  ) {
-
-    throw new Error(
-      "Authentication session tidak tersedia."
-    );
+    token =
+      data.session.access_token;
 
   }
-
-
-  /* ----------------------------------------------------------
-     NEVER LOG OR EXPOSE THIS TOKEN.
-  ---------------------------------------------------------- */
-
-  const token =
-    session?.access_token ||
-    null;
 
 
   const method =
@@ -4009,34 +4140,10 @@ async function apiRequest(
   };
 
 
-  /* ----------------------------------------------------------
-     SEND BEARER TOKEN WHENEVER A SESSION EXISTS.
-
-     This fixes the /me bootstrap path.
-  ---------------------------------------------------------- */
-
   if (token) {
 
     headers.Authorization =
       `Bearer ${token}`;
-
-  }
-
-
-  /* ----------------------------------------------------------
-     WORKSPACE HEADER IS ONLY FOR PROTECTED WORKSPACE
-     REQUESTS.
-
-     /me intentionally does NOT require this.
-  ---------------------------------------------------------- */
-
-  if (
-    requireAuth &&
-    state.workspace?.id
-  ) {
-
-    headers["X-Workspace-Id"] =
-      state.workspace.id;
 
   }
 
@@ -4047,14 +4154,12 @@ async function apiRequest(
       {
         method,
         headers,
-
         body:
           method === "GET" ||
           method === "HEAD"
             ? undefined
             : JSON.stringify(
-                options.body ||
-                {}
+                options.body || {}
               )
       }
     );
@@ -4084,6 +4189,7 @@ async function apiRequest(
     const text =
       await response.text();
 
+
     payload =
       text
         ? {
@@ -4101,14 +4207,17 @@ async function apiRequest(
     const error =
       new Error(
         payload?.message ||
-          `API request failed (${response.status})`
+        `API request failed (${response.status})`
       );
+
 
     error.status =
       response.status;
 
+
     error.payload =
       payload;
+
 
     throw error;
 
@@ -4129,10 +4238,9 @@ function normalizeError(
 ) {
 
   if (!error) {
-
     return "Unknown error.";
-
   }
+
 
   if (
     error.message
@@ -4141,6 +4249,7 @@ function normalizeError(
     return error.message;
 
   }
+
 
   return String(error);
 
@@ -4173,20 +4282,12 @@ function randomFrom(
   return array[
     Math.floor(
       Math.random() *
-        array.length
+      array.length
     )
   ];
 
 }
 
-
-/* ------------------------------------------------------------
-   FIXED HTML ESCAPING
-
-   The previous version did not actually escape HTML entities.
-   This version safely converts:
-   & < > " '
------------------------------------------------------------- */
 
 function escapeHTML(
   value
@@ -4228,6 +4329,7 @@ function renderProcessingError(
 ) {
 
   $("#content").innerHTML = `
+
     <div class="command-head">
 
       <div class="eyebrow">
@@ -4271,7 +4373,9 @@ function renderProcessingError(
       </div>
 
     </section>
+
   `;
+
 
   typeALI(
     "Saya belum bisa menyatakan data berhasil diproses. Kita berhenti di sini sampai execution backend memberikan status yang valid.",
@@ -4293,30 +4397,31 @@ document.addEventListener(
     if (
       (event.ctrlKey ||
         event.metaKey) &&
-      event.key.toLowerCase() ===
-        "k"
+      event.key.toLowerCase() === "k"
     ) {
 
       event.preventDefault();
 
       toggleALI(true);
 
+
       const input =
         $("#aliInput");
 
+
       if (input) {
-
         input.focus();
-
       }
 
     }
+
 
     if (
       event.key === "Escape"
     ) {
 
       closeMobileSidebar();
+
 
       if (
         $("#confirmModal") &&
@@ -4334,484 +4439,22 @@ document.addEventListener(
   }
 );
 
-/* ============================================================
-   SPECIAL ALI UI RECOVERY
-   - Indonesian / English
-   - Post sign-in ALI welcome
-   - Workspace shortcut
-   - Upload Data shortcut
-   - Stable navigation
-   - OCR icon size protection
-============================================================ */
-
-const SPECIAL_ALI_LANGUAGE_KEY = "special_ali_language";
-
-const SPECIAL_ALI_I18N = {
-  id: {
-    language: "Bahasa",
-    workspace: "Workspace",
-    uploadData: "Unggah Data",
-    ingestion: "Ingestion",
-    welcome: "Saya siap. Mau apa kita kali ini?",
-    workspaceDescription:
-      "Buka dashboard workspace dan lihat kondisi kontrol keuangan.",
-    uploadDescription:
-      "Unggah dokumen untuk diproses melalui ingestion pipeline.",
-    dashboard: "Dashboard Workspace",
-    dashboardDescription:
-      "Workspace siap. Kita mulai dari data yang benar-benar tersedia.",
-    openWorkspace: "Buka Workspace",
-    openUpload: "Unggah Data",
-    askALI: "Tanya ALI",
-    ocr: "OCR / Extraction",
-    processing: "Memeriksa data",
-    ready: "Siap"
-  },
-
-  en: {
-    language: "Language",
-    workspace: "Workspace",
-    uploadData: "Upload Data",
-    ingestion: "Ingestion",
-    welcome: "I’m ready. What shall we work on this time?",
-    workspaceDescription:
-      "Open the workspace dashboard and review financial control status.",
-    uploadDescription:
-      "Upload documents through the controlled ingestion pipeline.",
-    dashboard: "Workspace Dashboard",
-    dashboardDescription:
-      "Your workspace is ready. Let’s start with the data that actually exists.",
-    openWorkspace: "Open Workspace",
-    openUpload: "Upload Data",
-    askALI: "Ask ALI",
-    ocr: "OCR / Extraction",
-    processing: "Checking data",
-    ready: "Ready"
-  }
-};
-
-function getSPECIALALILanguage() {
-  return (
-    localStorage.getItem(SPECIAL_ALI_LANGUAGE_KEY) ||
-    "id"
-  );
-}
-
-function setSPECIALALILanguage(language) {
-  const nextLanguage =
-    language === "en" ? "en" : "id";
-
-  localStorage.setItem(
-    SPECIAL_ALI_LANGUAGE_KEY,
-    nextLanguage
-  );
-
-  document.documentElement.lang =
-    nextLanguage === "en" ? "en" : "id";
-
-  applySPECIALALITranslations();
-  renderSPECIALALIQuickActions();
-}
-
-function tSPECIALALI(key) {
-  const language =
-    getSPECIALALILanguage();
-
-  return (
-    SPECIAL_ALI_I18N[language]?.[key] ||
-    SPECIAL_ALI_I18N.en[key] ||
-    key
-  );
-}
-
-function applySPECIALALITranslations() {
-  const languageButton =
-    document.querySelector(
-      "#specialAliLanguageToggle"
-    );
-
-  if (languageButton) {
-    languageButton.textContent =
-      getSPECIALALILanguage() === "id"
-        ? "ID / EN"
-        : "EN / ID";
-  }
-
-  const workspaceButtons =
-    document.querySelectorAll(
-      "[data-special-ali-label='workspace']"
-    );
-
-  workspaceButtons.forEach(
-    button => {
-      button.textContent =
-        tSPECIALALI("workspace");
-    }
-  );
-
-  const uploadButtons =
-    document.querySelectorAll(
-      "[data-special-ali-label='upload']"
-    );
-
-  uploadButtons.forEach(
-    button => {
-      button.textContent =
-        tSPECIALALI("uploadData");
-    }
-  );
-}
-
-function toggleSPECIALALILanguage() {
-  const nextLanguage =
-    getSPECIALALILanguage() === "id"
-      ? "en"
-      : "id";
-
-  setSPECIALALILanguage(
-    nextLanguage
-  );
-
-  showToast(
-    nextLanguage === "id"
-      ? "Bahasa Indonesia aktif."
-      : "English language active.",
-    "success"
-  );
-}
-
-function createSPECIALALIButton(
-  label,
-  route,
-  type,
-  icon
-) {
-  const button =
-    document.createElement("button");
-
-  button.type = "button";
-  button.className =
-    type === "primary"
-      ? "btn btn-green"
-      : "btn btn-soft";
-
-  button.dataset.specialAliLabel =
-    route === "workspace"
-      ? "workspace"
-      : "upload";
-
-  button.innerHTML = `
-    <span
-      aria-hidden="true"
-      style="
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-        width:16px;
-        height:16px;
-        margin-right:6px;
-        font-size:14px;
-        line-height:1;
-      "
-    >${icon}</span>
-    <span class="special-ali-button-text">
-      ${escapeHTML(label)}
-    </span>
-  `;
-
-  button.addEventListener(
-    "click",
-    async () => {
-      await navigate(route);
-    }
-  );
-
-  return button;
-}
-
-function renderSPECIALALIQuickActions() {
-  const appView =
-    document.querySelector("#appView");
-
-  if (
-    !appView ||
-    appView.classList.contains("hidden")
-  ) {
-    return;
-  }
-
-  let actionBar =
-    document.querySelector(
-      "#specialAliQuickActions"
-    );
-
-  if (!actionBar) {
-    actionBar =
-      document.createElement("div");
-
-    actionBar.id =
-      "specialAliQuickActions";
-
-    actionBar.style.cssText = `
-      display:flex;
-      align-items:center;
-      justify-content:flex-start;
-      flex-wrap:wrap;
-      gap:10px;
-      margin:0 0 24px;
-    `;
-
-    const content =
-      document.querySelector("#content");
-
-    if (content) {
-      content.prepend(actionBar);
-    }
-  }
-
-  actionBar.innerHTML = "";
-
-  const workspaceButton =
-    createSPECIALALIButton(
-      tSPECIALALI("workspace"),
-      "workspace",
-      "soft",
-      "▦"
-    );
-
-  const uploadButton =
-    createSPECIALALIButton(
-      tSPECIALALI("uploadData"),
-      "ingestion",
-      "primary",
-      "↑"
-    );
-
-  actionBar.appendChild(
-    workspaceButton
-  );
-
-  actionBar.appendChild(
-    uploadButton
-  );
-
-  applySPECIALALITranslations();
-}
-
-function renderSPECIALALIWelcome() {
-  if (!state.user) {
-    return;
-  }
-
-  const welcome =
-    tSPECIALALI("welcome");
-
-  typeALI(
-    welcome,
-    "POST_SIGN_IN"
-  );
-
-  const existing =
-    document.querySelector(
-      "#specialAliWelcome"
-    );
-
-  if (existing) {
-    existing.remove();
-  }
-
-  const content =
-    document.querySelector("#content");
-
-  if (!content) {
-    return;
-  }
-
-  const welcomeBox =
-    document.createElement("section");
-
-  welcomeBox.id =
-    "specialAliWelcome";
-
-  welcomeBox.className =
-    "card page-card";
-
-  welcomeBox.style.cssText = `
-    margin-bottom:20px;
-    border-left:4px solid var(--green, #19a463);
-  `;
-
-  welcomeBox.innerHTML = `
-    <div class="eyebrow">
-      ALI
-    </div>
-
-    <div
-      class="card-title"
-      style="margin-top:8px"
-    >
-      ${escapeHTML(welcome)}
-    </div>
-
-    <div
-      class="card-copy"
-      style="margin-top:8px"
-    >
-      ${escapeHTML(
-        getSPECIALALILanguage() === "id"
-          ? "Pilih Workspace untuk membuka dashboard atau Unggah Data untuk memulai ingestion."
-          : "Choose Workspace to open the dashboard or Upload Data to start ingestion."
-      )}
-    </div>
-  `;
-
-  content.prepend(welcomeBox);
-}
-
-function ensureSPECIALALIRecoveryUI() {
-  document.documentElement.lang =
-    getSPECIALALILanguage() === "id"
-      ? "id"
-      : "en";
-
-  renderSPECIALALIQuickActions();
-  renderSPECIALALIWelcome();
-
-  const languageToggle =
-    document.querySelector(
-      "#specialAliLanguageToggle"
-    );
-
-  if (!languageToggle) {
-    const topbarRight =
-      document.querySelector(
-        ".topbar-right"
-      );
-
-    if (topbarRight) {
-      const button =
-        document.createElement("button");
-
-      button.id =
-        "specialAliLanguageToggle";
-
-      button.type = "button";
-      button.className =
-        "btn btn-soft";
-
-      button.style.cssText = `
-        padding:8px 12px;
-        font-size:11px;
-        white-space:nowrap;
-      `;
-
-      button.addEventListener(
-        "click",
-        toggleSPECIALALILanguage
-      );
-
-      topbarRight.prepend(button);
-    }
-  }
-
-  applySPECIALALITranslations();
-}
-
-/* Re-run the recovery UI whenever the app opens */
-const specialAliOriginalShowApp =
-  showApp;
-
-showApp = function() {
-  specialAliOriginalShowApp();
-
-  setTimeout(
-    () => {
-      ensureSPECIALALIRecoveryUI();
-    },
-    0
-  );
-};
-
-/* Re-run after every route render */
-const specialAliOriginalNavigate =
-  navigate;
-
-navigate = async function(route) {
-  const result =
-    await specialAliOriginalNavigate(
-      route
-    );
-
-  setTimeout(
-    () => {
-      renderSPECIALALIQuickActions();
-
-      if (route === "ali") {
-        renderSPECIALALIWelcome();
-      }
-    },
-    0
-  );
-
-  return result;
-};
-
-/* OCR icon protection */
-(function protectSPECIALALIOCRIcon() {
-  const style =
-    document.createElement("style");
-
-  style.id =
-    "specialAliOcrIconProtection";
-
-  style.textContent = `
-    .ocr-icon,
-    [data-route="ocr"] .nav-icon,
-    [data-route="ocr"] svg,
-    [data-route="ocr"] img {
-      width:18px !important;
-      height:18px !important;
-      max-width:18px !important;
-      max-height:18px !important;
-      min-width:18px !important;
-      min-height:18px !important;
-      flex:0 0 18px !important;
-      object-fit:contain !important;
-      display:inline-flex !important;
-      align-items:center !important;
-      justify-content:center !important;
-      overflow:hidden !important;
-    }
-
-    [data-route="ocr"] {
-      min-width:0 !important;
-    }
-
-    [data-route="ocr"] .nav-text {
-      min-width:0 !important;
-      overflow:hidden !important;
-      text-overflow:ellipsis !important;
-    }
-  `;
-
-  document.head.appendChild(style);
-})();
 
 /* ============================================================
    SECURITY / UI BOUNDARY NOTE
 
-   NEVER PUT:
+   IMPORTANT:
 
+   Never put:
    - service_role key
    - database password
    - private API secret
    - OpenAI private server key
    - OCR provider secret
 
-   INTO THIS FILE.
+   into this file.
 
    Browser receives only:
-
    - Supabase public anon key
    - authenticated session
    - data authorized by RLS/API.
