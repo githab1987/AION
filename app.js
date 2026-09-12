@@ -1244,9 +1244,24 @@ async function applyAuthenticatedSession(
   showApp();
 
   await navigate("ali");
-
+  
 }
 
+/* ============================================================
+   ADDITIVE READY EXPERIENCE
+============================================================ */
+
+window.setTimeout(function () {
+
+  if (
+    window.SPECIAL_ALI_READY &&
+    typeof window.SPECIAL_ALI_READY.open === "function"
+  ) {
+    window.SPECIAL_ALI_READY.open();
+  }
+
+}, 120);
+   
 
 /* ============================================================
    AUTH UI
