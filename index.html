@@ -1548,6 +1548,90 @@
     padding-right: 14px;
   }
 }
+
+    /* ============================================================
+   SPECIAL ALI — I’M READY AS A STANDALONE ENTRY PAGE
+   No sidebar
+   No topbar
+   No application header
+============================================================ */
+
+#specialAliReadyExperience {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  margin: 0;
+  padding: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #ffffff;
+
+  overflow: auto;
+}
+
+#specialAliReadyExperience[hidden] {
+  display: none !important;
+}
+
+#specialAliReadyExperience .ready-experience-inner {
+  width: min(900px, 100%);
+  margin: 0 auto;
+  text-align: center;
+}
+
+#specialAliReadyExperience .ready-eyebrow {
+  display: none;
+}
+
+#specialAliReadyExperience .ready-title {
+  margin: 0;
+}
+
+#specialAliReadyExperience .ready-message {
+  margin-top: 28px;
+}
+
+#specialAliReadyExperience .ready-actions {
+  margin-top: 44px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 14px;
+  flex-wrap: nowrap;
+}
+
+#specialAliReadyExperience .ready-action-button {
+  min-width: 190px;
+}
+
+@media (max-width: 600px) {
+  #specialAliReadyExperience {
+    padding: 24px 18px;
+  }
+
+  #specialAliReadyExperience .ready-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  #specialAliReadyExperience .ready-action-button {
+    width: min(340px, 100%);
+    min-width: 0;
+  }
+}
     
   </style>
 </head>
@@ -2269,13 +2353,13 @@
       </header>
 
       <!-- SPECIAL ALI — Ready Experience -->
-<section
-  id="specialAliReadyExperience"
-  class="ready-experience"
-  aria-labelledby="specialAliReadyTitle"
-  hidden
->
-  <div class="ready-experience-inner">
+  <section
+         id="specialAliReadyExperience"
+         class="ready-experience"
+         aria-labelledby="specialAliReadyTitle"
+         hidden
+  >
+    <div class="ready-experience-inner">
 
     <div class="ready-eyebrow">
       SPECIAL ALI
@@ -2296,18 +2380,21 @@
     <div class="ready-actions">
 
       <button
-        type="button"
-        class="ready-action-button"
-        id="specialAliWorkspaceButton"
-      >
+       type="button"
+       class="ready-action-button"
+       id="readyWorkspaceButton"
+       onclick="navigate('work')"
+    >
         <span>Workspace</span>
+        
       </button>
 
       <button
-        type="button"
-        class="ready-action-button"
-        id="specialAliIngestionButton"
-      >
+       type="button"
+       class="ready-action-button"
+       id="readyIngestionButton"
+       onclick="navigate('ingestion')"
+    >
         <span>Ingestion Data</span>
       </button>
 
