@@ -972,6 +972,7 @@ function bindEvents() {
     handleResize
   );
 
+}
 
 /* ============================================================
    AUTH SESSION
