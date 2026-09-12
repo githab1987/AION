@@ -930,6 +930,9 @@ document.addEventListener(
     bindEvents();
     applySidebarState();
 
+    updateLanguageButtons();
+    applyNavigationLanguage();
+
     if (!state.backendConfigured) {
 
       setConnection(
