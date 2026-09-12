@@ -2216,11 +2216,6 @@ async function navigate(route) {
   state.route = route;
 
   /*
-    Update navigasi aktif.
-  */
-  updateActiveNavigation();
-
-  /*
     Update judul halaman.
   */
   $("#topbarTitle").textContent =
