@@ -4923,3 +4923,311 @@ window.SPECIAL_ALI = {
   requestPasswordReset
 
 };
+
+
+/* ============================================================
+   SPECIAL ALI — READY EXPERIENCE
+   ADDITIVE ONLY
+============================================================ */
+
+(function () {
+
+  const readyMessages = {
+    en: [
+      "What should we accomplish today?",
+      "Let’s organize your financial data.",
+      "Let’s investigate your documents.",
+      "Let’s prepare your accounting workflow.",
+      "Let’s review your tax data.",
+      "Let’s turn evidence into a clear result."
+    ],
+
+    id: [
+      "Apa yang ingin kita selesaikan hari ini?",
+      "Mari kita rapikan dan pahami data keuangan Anda.",
+      "Mari kita periksa dokumen yang ada.",
+      "Mari kita siapkan alur accounting Anda.",
+      "Mari kita tinjau data perpajakan Anda.",
+      "Mari kita ubah evidence menjadi hasil yang jelas."
+    ]
+  };
+
+  let readyMessageIndex = 0;
+  let readyMessageTimer = null;
+
+  function getReadyElement() {
+    return document.getElementById(
+      "specialAliReadyExperience"
+    );
+  }
+
+  function getCurrentLanguage() {
+    try {
+      if (
+        typeof state !== "undefined" &&
+        state.language
+      ) {
+        return state.language === "en"
+          ? "en"
+          : "id";
+      }
+    } catch (error) {
+      /* Existing application state remains authoritative. */
+    }
+
+    return (
+      localStorage.getItem("special_ali_language") === "en"
+        ? "en"
+        : "id"
+    );
+  }
+
+  function updateReadyMessage() {
+
+    const messageElement =
+      document.getElementById(
+        "specialAliReadyMessage"
+      );
+
+    if (!messageElement) {
+      return;
+    }
+
+    const language = getCurrentLanguage();
+
+    const messages =
+      readyMessages[language] ||
+      readyMessages.id;
+
+    if (!messages.length) {
+      return;
+    }
+
+    messageElement.classList.add(
+      "is-changing"
+    );
+
+    window.setTimeout(function () {
+
+      readyMessageIndex =
+        (readyMessageIndex + 1) %
+        messages.length;
+
+      messageElement.textContent =
+        messages[readyMessageIndex];
+
+      messageElement.classList.remove(
+        "is-changing"
+      );
+
+    }, 420);
+  }
+
+  function startReadyRotation() {
+
+    stopReadyRotation();
+
+    readyMessageTimer =
+      window.setInterval(
+        updateReadyMessage,
+        4200
+      );
+  }
+
+  function stopReadyRotation() {
+
+    if (readyMessageTimer) {
+
+      window.clearInterval(
+        readyMessageTimer
+      );
+
+      readyMessageTimer = null;
+    }
+  }
+
+  function openReadyExperience() {
+
+    const ready =
+      getReadyElement();
+
+    if (!ready) {
+      return;
+    }
+
+    ready.hidden = false;
+
+    readyMessageIndex = 0;
+
+    const messageElement =
+      document.getElementById(
+        "specialAliReadyMessage"
+      );
+
+    if (messageElement) {
+
+      const language =
+        getCurrentLanguage();
+
+      messageElement.textContent =
+        readyMessages[language][0];
+    }
+
+    startReadyRotation();
+  }
+
+  function closeReadyExperience() {
+
+    const ready =
+      getReadyElement();
+
+    if (!ready) {
+      return;
+    }
+
+    ready.hidden = true;
+
+    stopReadyRotation();
+  }
+
+  function goToExistingRoute(routeName) {
+
+    /*
+      IMPORTANT:
+      We do not create a second navigation system.
+
+      We reuse the existing SPECIAL ALI router.
+    */
+
+    try {
+
+      if (
+        typeof navigate === "function"
+      ) {
+
+        navigate(routeName);
+        return;
+      }
+
+    } catch (error) {
+
+      console.warn(
+        "SPECIAL ALI ready navigation:",
+        error
+      );
+    }
+
+    /*
+      Fallback:
+      click the existing sidebar item
+      rather than creating a duplicate route.
+    */
+
+    const selectors = [
+      `[data-route="${routeName}"]`,
+      `[data-page="${routeName}"]`,
+      `[data-view="${routeName}"]`
+    ];
+
+    for (
+      const selector of selectors
+    ) {
+
+      const target =
+        document.querySelector(selector);
+
+      if (target) {
+
+        target.click();
+        return;
+      }
+    }
+
+    console.warn(
+      "SPECIAL ALI route not found:",
+      routeName
+    );
+  }
+
+  function bindReadyActions() {
+
+    const workspaceButton =
+      document.getElementById(
+        "readyWorkspaceButton"
+      );
+
+    const ingestionButton =
+      document.getElementById(
+        "readyIngestionButton"
+      );
+
+    if (workspaceButton) {
+
+      workspaceButton.addEventListener(
+        "click",
+        function () {
+
+          closeReadyExperience();
+
+          goToExistingRoute(
+            "work"
+          );
+        }
+      );
+    }
+
+    if (ingestionButton) {
+
+      ingestionButton.addEventListener(
+        "click",
+        function () {
+
+          closeReadyExperience();
+
+          goToExistingRoute(
+            "ingestion"
+          );
+        }
+      );
+    }
+  }
+
+  function initReadyExperience() {
+
+    bindReadyActions();
+
+    /*
+      The ready experience is intentionally
+      NOT forced immediately here.
+
+      Existing authentication and Sign In
+      remain authoritative.
+    */
+  }
+
+  /*
+    Expose only the new additive feature.
+    Existing application functions are untouched.
+  */
+
+  window.SPECIAL_ALI_READY = {
+    open: openReadyExperience,
+    close: closeReadyExperience,
+    init: initReadyExperience
+  };
+
+  if (
+    document.readyState === "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      initReadyExperience
+    );
+
+  } else {
+
+    initReadyExperience();
+  }
+
+})();
