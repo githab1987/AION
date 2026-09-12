@@ -2239,6 +2239,74 @@ async function navigate(route) {
 }
 
 /* ============================================================
+   ROUTE RENDERER
+============================================================ */
+
+async function renderRoute(route) {
+
+  switch (route) {
+
+    case "ali":
+      renderCommandCenter();
+      break;
+
+    case "work":
+      renderWork();
+      break;
+
+    case "investigation":
+      renderInvestigation();
+      break;
+
+    case "reconciliation":
+      renderReconciliation();
+      break;
+
+    case "findings":
+      renderFindings();
+      break;
+
+    case "exceptions":
+      renderExceptions();
+      break;
+
+    case "unresolved":
+      renderUnresolved();
+      break;
+
+    case "ocr":
+      renderOCR();
+      break;
+
+    case "ingestion":
+      renderIngestion();
+      break;
+
+    case "reset-data":
+      renderResetData();
+      break;
+
+    case "delete-data":
+      renderDeleteData();
+      break;
+
+    case "refresh-audit":
+      renderRefreshAudit();
+      break;
+
+    case "account":
+      renderAccount();
+      break;
+
+    default:
+      renderGenericPage(route);
+      break;
+
+  }
+
+}
+
+/* ============================================================
    COMMAND CENTER
 ============================================================ */
 
