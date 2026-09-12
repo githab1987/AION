@@ -3007,20 +3007,27 @@ async function processUploadSelection(
       result.upload_urls
     ) {
 
-      await uploadFilesToSignedUrls(
-  files,
-  result.upload_urls
-);
+      if (
+  result.execution_id
+) {
 
-if (result.execution_id) {
-
-  await runExecution(
-    result.execution_id
-  );
-
-     monitorExecution(
+  const executionResult =
+    await runExecution(
       result.execution_id
+    );
+
+  if (
+    executionResult &&
+    executionResult.execution
+  ) {
+
+     updateExecutionUI(
+      executionResult.execution
    );
+
+     }
+
+    }
 
   }
     await monitorExecution(
@@ -3259,13 +3266,14 @@ async function monitorExecution(
 
     finished =
       [
-        "COMPLETED",
-        "FAILED",
-        "STOPPED",
-        "BLOCKED"
-      ].includes(
-        status
-      );
+       "COMPLETED",
+       "FAILED",
+       "CANCELLED",
+       "STOPPED",
+       "BLOCKED"
+].includes(
+  status
+);
 
 
     if (!finished) {
