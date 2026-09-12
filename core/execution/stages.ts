@@ -404,6 +404,369 @@ async function saveStage(
   }
 }
 
+const TXT_MAX_BYTES =
+  4 * 1024 * 1024;
+
+function isTxtFile(
+  dataObject: DataObjectRow
+): boolean {
+  const extension =
+    (
+      dataObject.file_extension ??
+      getExtension(dataObject.name) ??
+      ""
+    ).toLowerCase();
+
+  const mime =
+    (
+      dataObject.mime_type ??
+      ""
+    ).toLowerCase();
+
+  return (
+    extension === "txt" ||
+    mime === "text/plain"
+  );
+}
+
+function normalizeFieldKey(
+  value: string
+): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function parseTextScalar(
+  key: string,
+  value: string
+): unknown {
+  const normalized =
+    value.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  const lowerKey =
+    key.toLowerCase();
+
+  const numericField =
+    [
+      "jumlah",
+      "amount",
+      "nominal",
+      "harga",
+      "total",
+      "subtotal",
+      "penjualan",
+      "pembelian",
+      "pendapatan",
+      "pajak",
+      "ppn",
+      "pph",
+      "debit",
+      "kredit",
+      "saldo",
+      "nilai"
+    ].some(
+      (term) =>
+        lowerKey.includes(term)
+    );
+
+  if (numericField) {
+    const cleaned =
+      normalized
+        .replace(/rp/gi, "")
+        .replace(/\s/g, "")
+        .replace(/\./g, "")
+        .replace(/,/g, ".");
+
+    const numberValue =
+      Number(cleaned);
+
+    if (
+      Number.isFinite(numberValue)
+    ) {
+      return numberValue;
+    }
+  }
+
+  return normalized;
+}
+
+function parseTxtContent(
+  text: string
+): JsonRecord {
+  const normalizedText =
+    text
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/^\uFEFF/, "");
+
+  const lines =
+    normalizedText.split("\n");
+
+  const fields:
+    Record<string, unknown> = {};
+
+  const sourceSpans:
+    Array<JsonRecord> = [];
+
+  const records:
+    Array<JsonRecord> = [];
+
+  let keyValueCount = 0;
+
+  for (
+    let index = 0;
+    index < lines.length;
+    index++
+  ) {
+    const rawLine =
+      lines[index];
+
+    const line =
+      rawLine.trim();
+
+    if (!line) {
+      continue;
+    }
+
+    /*
+      Format yang didukung:
+
+      Nama: Toko Kopi Bos
+      Nama = Toko Kopi Bos
+    */
+
+    const match =
+      line.match(
+        /^([^:=]{1,120})\s*[:=]\s*(.+)$/
+      );
+
+    if (!match) {
+      continue;
+    }
+
+    const rawKey =
+      match[1].trim();
+
+    const rawValue =
+      match[2].trim();
+
+    if (
+      !rawKey ||
+      !rawValue
+    ) {
+      continue;
+    }
+
+    const key =
+      normalizeFieldKey(
+        rawKey
+      );
+
+    if (!key) {
+      continue;
+    }
+
+    const value =
+      parseTextScalar(
+        key,
+        rawValue
+      );
+
+    fields[key] =
+      value;
+
+    sourceSpans.push({
+      field: key,
+      source_line:
+        index + 1,
+      source_text:
+        rawLine
+    });
+
+    keyValueCount++;
+  }
+
+  /*
+    Dukungan sederhana untuk
+    data berbentuk tabel:
+
+    Tanggal | Nama | Total
+    10/09/2026 | Toko | 1500000
+  */
+
+  const tableLines =
+    lines
+      .map(
+        (line, index) => ({
+          line:
+            line.trim(),
+          lineNumber:
+            index + 1
+        })
+      )
+      .filter(
+        ({ line }) =>
+          line.includes("|")
+      );
+
+  if (
+    tableLines.length >= 2
+  ) {
+    const headers =
+      tableLines[0].line
+        .split("|")
+        .map(
+          (value) =>
+            normalizeFieldKey(value)
+        )
+        .filter(Boolean);
+
+    if (
+      headers.length > 0
+    ) {
+      for (
+        let i = 1;
+        i < tableLines.length;
+        i++
+      ) {
+        const values =
+          tableLines[i].line
+            .split("|")
+            .map(
+              (value) =>
+                value.trim()
+            );
+
+        if (
+          values.length !==
+          headers.length
+        ) {
+          continue;
+        }
+
+        const record:
+          Record<string, unknown> = {};
+
+        headers.forEach(
+          (header, columnIndex) => {
+            record[header] =
+              parseTextScalar(
+                header,
+                values[columnIndex]
+              );
+          }
+        );
+
+        records.push(record);
+      }
+    }
+  }
+
+  const preview =
+    normalizedText.length > 4000
+      ? normalizedText.slice(
+          0,
+          4000
+        ) + "\n...[PREVIEW_TRUNCATED]"
+      : normalizedText;
+
+  return {
+    parser:
+      "SPECIAL_ALI_TXT_PARSER_V0.1",
+
+    schema:
+      keyValueCount > 0
+        ? "KEY_VALUE"
+        : records.length > 0
+          ? "TABLE"
+          : "PLAIN_TEXT",
+
+    fields,
+
+    records,
+
+    source_spans:
+      sourceSpans,
+
+    line_count:
+      lines.length,
+
+    character_count:
+      normalizedText.length,
+
+    raw_text_preview:
+      preview
+  };
+}
+
+async function readTxtFromStorage(
+  storagePath: string
+): Promise<{
+  text: string;
+  sizeBytes: number;
+}> {
+  const {
+    data,
+    error
+  } =
+    await supabaseAdmin
+      .storage
+      .from("evidence")
+      .download(
+        storagePath
+      );
+
+  if (
+    error ||
+    !data
+  ) {
+    throw new HttpError(
+      500,
+      "TXT_STORAGE_READ_FAILED",
+      error?.message ??
+        "Unable to read TXT from evidence storage"
+    );
+  }
+
+  const buffer =
+    await data.arrayBuffer();
+
+  if (
+    buffer.byteLength >
+    TXT_MAX_BYTES
+  ) {
+    throw new HttpError(
+      422,
+      "TXT_FILE_TOO_LARGE",
+      "TXT file exceeds the v0.1 extraction limit of 4 MB"
+    );
+  }
+
+  const decoder =
+    new TextDecoder(
+      "utf-8",
+      {
+        fatal: false
+      }
+    );
+
+  const text =
+    decoder.decode(buffer);
+
+  return {
+    text,
+    sizeBytes:
+      buffer.byteLength
+  };
+}
+
 async function processExtraction(
   context: ExecutionContext
 ) {
