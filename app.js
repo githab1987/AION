@@ -118,7 +118,7 @@ const state = {
 
   pendingConfirmation: null,
 
-  backendConfigured: false
+  backendConfigured: false,
 
   language:
   localStorage.getItem("special_ali_language") === "en"
