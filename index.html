@@ -1376,16 +1376,22 @@
    Hidden must really be hidden.
 ============================================================ */
 
-.ready-experience[hidden] {
+  .ready-experience[hidden] {
   display: none !important;
 }
 
-/* Keep Ready Experience inside the application flow,
-   never above the navigation layer. */
 .ready-experience {
   position: relative;
   z-index: 1;
-}
+  width: 100%;
+  min-height: min(680px, calc(100vh - 120px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 72px 32px 84px;
+  box-sizing: border-box;
+  text-align: center;
+}  
 
 /* Match the existing SPECIAL ALI / Get Started button language */
 .ready-action-button {
