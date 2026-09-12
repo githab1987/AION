@@ -1248,39 +1248,6 @@
   }
 }
 
-
-    /*
-      IMPORTANT:
-
-      We do not create a second
-      navigation system.
-
-      We reuse the existing
-      SPECIAL ALI router.
-    */
-
-    try {
-
-      if (
-        typeof navigate === "function"
-      ) {
-
-        navigate(routeName);
-
-        return;
-
-      }
-
-    } catch (error) {
-
-      console.warn(
-        "SPECIAL ALI ready navigation:",
-        error
-      );
-
-    }
-
-
     
 /* ============================================================
    SPECIAL ALI — READY EXPERIENCE SAFETY
