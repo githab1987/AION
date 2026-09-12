@@ -1,13 +1,29 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type {
+  VercelRequest,
+  VercelResponse
+} from "@vercel/node";
 
 import {
-  authorizeRequest,
-  type AuthorizedRequestContext,
-} from "../../core/auth/authorize";
+  authorizeRequest
+} from "../../core/authorization/middleware.js";
 
-import { supabaseAdmin } from "../../infrastructure/supabase/client";
+import {
+  authorizeDataObjectAccess
+} from "../../core/data-center/access.js";
 
-type JsonRecord = Record<string, unknown>;
+import {
+  supabaseAdmin
+} from "../../infrastructure/supabase/client.js";
+
+import {
+  errorResponse,
+  HttpError
+} from "../../shared/errors/http.js";
+
+
+type JsonRecord =
+  Record<string, unknown>;
+
 
 const STAGES = [
   "DATA_RECEIVED",
@@ -16,33 +32,49 @@ const STAGES = [
   "VALIDATION",
   "DUPLICATE_DETECTION",
   "EVIDENCE",
-  "DATA_READY",
+  "DATA_READY"
 ] as const;
 
-type IngestionStage = (typeof STAGES)[number];
 
 function json(
   res: VercelResponse,
   status: number,
   payload: JsonRecord
 ) {
-  return res.status(status).json(payload);
+  return res
+    .status(status)
+    .json(payload);
 }
 
-function normalizeString(value: unknown): string | null {
-  if (typeof value !== "string") return null;
 
-  const normalized = value.trim();
+function normalizeString(
+  value: unknown
+): string | null {
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized =
+    value.trim();
 
   return normalized.length > 0
     ? normalized
     : null;
 }
 
-function getFileExtension(name: string): string | null {
-  const index = name.lastIndexOf(".");
 
-  if (index <= 0 || index === name.length - 1) {
+function getFileExtension(
+  name: string
+): string | null {
+
+  const index =
+    name.lastIndexOf(".");
+
+  if (
+    index <= 0 ||
+    index === name.length - 1
+  ) {
     return null;
   }
 
@@ -51,14 +83,18 @@ function getFileExtension(name: string): string | null {
     .toLowerCase();
 }
 
+
 function detectObjectType(
   mimeType: string | null
 ): string {
+
   if (!mimeType) {
     return "DOCUMENT";
   }
 
-  if (mimeType.startsWith("image/")) {
+  if (
+    mimeType.startsWith("image/")
+  ) {
     return "IMAGE";
   }
 
@@ -74,35 +110,29 @@ function detectObjectType(
   return "FILE";
 }
 
-function errorMessage(error: unknown): string {
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-  ) {
-    return String(
-      (error as { message: string }).message
-    );
-  }
-
-  return "Terjadi kesalahan pada ingestion.";
-}
 
 function getBody(
   req: VercelRequest
 ): JsonRecord {
+
   if (!req.body) {
     return {};
   }
 
-  if (typeof req.body === "object") {
+  if (
+    typeof req.body === "object"
+  ) {
     return req.body as JsonRecord;
   }
 
-  if (typeof req.body === "string") {
+  if (
+    typeof req.body === "string"
+  ) {
+
     try {
-      const parsed = JSON.parse(req.body);
+
+      const parsed =
+        JSON.parse(req.body);
 
       if (
         parsed &&
@@ -110,53 +140,107 @@ function getBody(
       ) {
         return parsed as JsonRecord;
       }
+
     } catch {
-      return {};
+      throw new HttpError(
+        400,
+        "INVALID_REQUEST_BODY",
+        "Request body must contain valid JSON"
+      );
     }
   }
 
   return {};
 }
 
-function getAuthorizationContext(
-  req: VercelRequest
-): AuthorizedRequestContext {
-  return authorizeRequest(req);
+
+function isUuid(
+  value: string
+): boolean {
+
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    .test(value);
 }
+
+
+/* ============================================================
+   POST
+   CREATE INGESTION JOB
+============================================================ */
 
 async function handlePost(
   req: VercelRequest,
-  res: VercelResponse,
-  context: AuthorizedRequestContext
+  res: VercelResponse
 ) {
-  const body = getBody(req);
+
+  const {
+    authorization
+  } = await authorizeRequest(req);
+
+
+  const {
+    tenantId,
+    workspaceId,
+    userId,
+    requestId
+  } = authorization.identity;
+
+
+  const body =
+    getBody(req);
+
 
   const sourceName =
-    normalizeString(body.source_name) ??
-    normalizeString(body.name);
+    normalizeString(
+      body.source_name
+    ) ??
+    normalizeString(
+      body.name
+    );
+
 
   if (!sourceName) {
-    return json(res, 400, {
-      ok: false,
-      error: "source_name wajib diisi.",
-    });
+
+    throw new HttpError(
+      400,
+      "SOURCE_NAME_REQUIRED",
+      "source_name wajib diisi"
+    );
   }
 
+
   const mimeType =
-    normalizeString(body.mime_type);
+    normalizeString(
+      body.mime_type
+    );
+
 
   const fileExtension =
-    normalizeString(body.file_extension) ??
-    getFileExtension(sourceName);
+    normalizeString(
+      body.file_extension
+    ) ??
+    getFileExtension(
+      sourceName
+    );
+
 
   const sizeBytes =
     typeof body.size_bytes === "number" &&
     Number.isFinite(body.size_bytes)
-      ? Math.max(0, Math.floor(body.size_bytes))
+      ? Math.max(
+          0,
+          Math.floor(
+            body.size_bytes
+          )
+        )
       : null;
 
+
   const contentHash =
-    normalizeString(body.content_hash);
+    normalizeString(
+      body.content_hash
+    );
+
 
   const metadata: JsonRecord =
     body.metadata &&
@@ -164,18 +248,15 @@ async function handlePost(
       ? body.metadata as JsonRecord
       : {};
 
+
   const objectType =
-    normalizeString(body.object_type) ??
-    detectObjectType(mimeType);
+    normalizeString(
+      body.object_type
+    ) ??
+    detectObjectType(
+      mimeType
+    );
 
-  const tenantId =
-    context.workspace.tenant_id;
-
-  const workspaceId =
-    context.workspace.id;
-
-  const userId =
-    context.user.id;
 
   /*
    * ----------------------------------------------------------
@@ -185,258 +266,407 @@ async function handlePost(
 
   const {
     data: dataObject,
-    error: dataObjectError,
-  } = await supabaseAdmin
-    .from("data_objects")
-    .insert({
-      tenant_id: tenantId,
-      workspace_id: workspaceId,
-      source_id: null,
+    error: dataObjectError
+  } =
+    await supabaseAdmin
+      .from("data_objects")
+      .insert({
+        tenant_id:
+          tenantId,
 
-      object_type: objectType,
+        workspace_id:
+          workspaceId,
 
-      status: "RECEIVED",
+        source_id:
+          null,
 
-      name: sourceName,
+        object_type:
+          objectType,
 
-      description:
-        normalizeString(body.description),
+        status:
+          "RECEIVED",
 
-      mime_type: mimeType,
+        name:
+          sourceName,
 
-      file_extension: fileExtension,
+        description:
+          normalizeString(
+            body.description
+          ),
 
-      size_bytes: sizeBytes,
+        mime_type:
+          mimeType,
 
-      content_hash: contentHash,
+        file_extension:
+          fileExtension,
 
-      content_hash_algorithm:
-        contentHash
-          ? "SHA-256"
-          : null,
+        size_bytes:
+          sizeBytes,
 
-      version: 1,
+        content_hash:
+          contentHash,
 
-      parent_object_id: null,
+        content_hash_algorithm:
+          contentHash
+            ? "SHA-256"
+            : null,
 
-      metadata,
+        version:
+          1,
 
-      provenance: {
-        source: "SPECIAL_ALI",
-        ingestion: true,
-        received_at:
-          new Date().toISOString(),
-      },
+        parent_object_id:
+          null,
 
-      classification: {},
+        metadata,
 
-      registered_by: userId,
-    })
-    .select(
-      [
-        "id",
-        "tenant_id",
-        "workspace_id",
-        "object_type",
-        "status",
-        "name",
-        "mime_type",
-        "file_extension",
-        "size_bytes",
-        "content_hash",
-        "version",
-        "metadata",
-        "provenance",
-        "created_at",
-        "updated_at",
-      ].join(",")
-    )
-    .single();
+        provenance: {
+          source:
+            "SPECIAL_ALI",
+
+          ingestion:
+            true,
+
+          received_at:
+            new Date().toISOString()
+        },
+
+        classification:
+          {},
+
+        registered_by:
+          userId
+      })
+      .select(`
+        id,
+        tenant_id,
+        workspace_id,
+        source_id,
+        object_type,
+        status,
+        name,
+        description,
+        mime_type,
+        file_extension,
+        size_bytes,
+        content_hash,
+        content_hash_algorithm,
+        version,
+        parent_object_id,
+        metadata,
+        provenance,
+        classification,
+        registered_by,
+        created_at,
+        updated_at
+      `)
+      .single();
+
 
   if (dataObjectError) {
-    throw dataObjectError;
+    throw new HttpError(
+      500,
+      "DATA_OBJECT_CREATE_FAILED",
+      "Unable to create data object"
+    );
   }
+
 
   /*
    * ----------------------------------------------------------
-   * 2. CREATE INGESTION JOB
+   * 2. AUTHORIZE DATA OBJECT WRITE
+   * ----------------------------------------------------------
+   *
+   * Data object authorization is evaluated
+   * against the real authorization architecture.
+   */
+
+  try {
+
+    await authorizeDataObjectAccess(
+      authorization,
+      dataObject.id,
+      "WRITE"
+    );
+
+  } catch (error) {
+
+    await supabaseAdmin
+      .from("data_objects")
+      .delete()
+      .eq(
+        "id",
+        dataObject.id
+      )
+      .eq(
+        "workspace_id",
+        workspaceId
+      );
+
+    throw error;
+  }
+
+
+  /*
+   * ----------------------------------------------------------
+   * 3. CREATE INGESTION JOB
    * ----------------------------------------------------------
    */
 
   const {
     data: ingestionJob,
-    error: ingestionError,
-  } = await supabaseAdmin
-    .from("ingestion_jobs")
-    .insert({
-      tenant_id: tenantId,
-      workspace_id: workspaceId,
-
-      data_object_id:
-        dataObject.id,
-
-      source_name:
-        sourceName,
-
-      status:
-        "RECEIVED",
-
-      current_stage:
-        "DATA_RECEIVED",
-
-      input_metadata: {
-        name: sourceName,
-        mime_type: mimeType,
-        file_extension: fileExtension,
-        size_bytes: sizeBytes,
-        content_hash: contentHash,
-        object_type: objectType,
-        metadata,
-      },
-
-      extraction: {},
-
-      classification: {},
-
-      validation: {},
-
-      duplicate_detection: {},
-
-      evidence: {},
-
-      routing: {
-        available: false,
-        selected: null,
-        options: [
-          "ACCOUNTING",
-          "TAX",
-          "BOTH",
-          "INVESTIGATE",
-        ],
-      },
-
-      error: null,
-
-      started_at:
-        new Date().toISOString(),
-
-      completed_at:
-        null,
-    })
-    .select("*")
-    .single();
-
-  if (ingestionError) {
-    /*
-     * Roll back the data object if the
-     * ingestion job could not be created.
-     */
+    error: ingestionError
+  } =
     await supabaseAdmin
-      .from("data_objects")
-      .delete()
-      .eq("id", dataObject.id)
-      .eq("workspace_id", workspaceId);
+      .from("ingestion_jobs")
+      .insert({
+        tenant_id:
+          tenantId,
 
-    throw ingestionError;
-  }
+        workspace_id:
+          workspaceId,
 
-  /*
-   * ----------------------------------------------------------
-   * 3. AUDIT EVENT
-   * ----------------------------------------------------------
-   */
-
-  const requestId =
-    normalizeString(
-      req.headers["x-request-id"]
-    );
-
-  await supabaseAdmin
-    .from("audit_events")
-    .insert({
-      tenant_id: tenantId,
-      workspace_id: workspaceId,
-      actor_id: userId,
-
-      action:
-        "INGESTION_JOB_CREATED",
-
-      resource_type:
-        "INGESTION_JOB",
-
-      resource_id:
-        ingestionJob.id,
-
-      status:
-        "SUCCESS",
-
-      request_id:
-        requestId,
-
-      reason:
-        "SPECIAL ALI data ingestion received.",
-
-      metadata: {
         data_object_id:
           dataObject.id,
 
         source_name:
           sourceName,
 
+        status:
+          "RECEIVED",
+
         current_stage:
           "DATA_RECEIVED",
-      },
-    });
+
+        input_metadata: {
+          name:
+            sourceName,
+
+          mime_type:
+            mimeType,
+
+          file_extension:
+            fileExtension,
+
+          size_bytes:
+            sizeBytes,
+
+          content_hash:
+            contentHash,
+
+          object_type:
+            objectType,
+
+          metadata
+        },
+
+        extraction:
+          {},
+
+        classification:
+          {},
+
+        validation:
+          {},
+
+        duplicate_detection:
+          {},
+
+        evidence:
+          {},
+
+        routing: {
+          available:
+            false,
+
+          selected:
+            null,
+
+          options: [
+            "ACCOUNTING",
+            "TAX",
+            "BOTH",
+            "INVESTIGATE"
+          ]
+        },
+
+        error:
+          null,
+
+        started_at:
+          new Date().toISOString(),
+
+        completed_at:
+          null
+      })
+      .select("*")
+      .single();
+
+
+  if (ingestionError) {
+
+    await supabaseAdmin
+      .from("data_objects")
+      .delete()
+      .eq(
+        "id",
+        dataObject.id
+      )
+      .eq(
+        "workspace_id",
+        workspaceId
+      );
+
+    throw new HttpError(
+      500,
+      "INGESTION_JOB_CREATE_FAILED",
+      "Unable to create ingestion job"
+    );
+  }
+
 
   /*
    * ----------------------------------------------------------
-   * 4. RETURN AUTHORITATIVE STATE
+   * 4. AUDIT EVENT
    * ----------------------------------------------------------
    */
 
-  return json(res, 201, {
-    ok: true,
+  const {
+    error: auditError
+  } =
+    await supabaseAdmin
+      .from("audit_events")
+      .insert({
+        tenant_id:
+          tenantId,
 
-    ingestion: {
-      id:
-        ingestionJob.id,
+        workspace_id:
+          workspaceId,
 
-      data_object_id:
-        dataObject.id,
+        actor_id:
+          userId,
 
-      status:
-        "RECEIVED",
+        action:
+          "INGESTION_JOB_CREATED",
 
-      current_stage:
-        "DATA_RECEIVED",
+        resource_type:
+          "INGESTION_JOB",
 
-      next_stage:
-        "EXTRACTION",
+        resource_id:
+          ingestionJob.id,
 
-      stages:
-        STAGES,
+        status:
+          "SUCCESS",
 
-      routing:
-        ingestionJob.routing,
-    },
+        request_id:
+          requestId,
 
-    data_object:
-      dataObject,
-  });
+        reason:
+          "SPECIAL ALI data ingestion received.",
+
+        metadata: {
+          data_object_id:
+            dataObject.id,
+
+          source_name:
+            sourceName,
+
+          current_stage:
+            "DATA_RECEIVED"
+        }
+      });
+
+
+  if (auditError) {
+
+    /*
+     * The ingestion job itself already exists.
+     *
+     * We do not delete valid business data merely
+     * because audit registration failed.
+     *
+     * Return an explicit server error so the
+     * failure is visible and accountable.
+     */
+
+    throw new HttpError(
+      500,
+      "AUDIT_EVENT_CREATE_FAILED",
+      "Ingestion was created but audit registration failed"
+    );
+  }
+
+
+  /*
+   * ----------------------------------------------------------
+   * 5. AUTHORITATIVE RESPONSE
+   * ----------------------------------------------------------
+   */
+
+  return json(
+    res,
+    201,
+    {
+      ok:
+        true,
+
+      service:
+        "SPECIAL ALI",
+
+      component:
+        "INGESTION",
+
+      ingestion: {
+        id:
+          ingestionJob.id,
+
+        data_object_id:
+          dataObject.id,
+
+        status:
+          ingestionJob.status,
+
+        current_stage:
+          ingestionJob.current_stage,
+
+        next_stage:
+          "EXTRACTION",
+
+        stages:
+          STAGES,
+
+        routing:
+          ingestionJob.routing
+      },
+
+      data_object:
+        dataObject
+    }
+  );
 }
+
+
+/* ============================================================
+   GET
+   LIST / SINGLE INGESTION JOB
+============================================================ */
 
 async function handleGet(
   req: VercelRequest,
-  res: VercelResponse,
-  context: AuthorizedRequestContext
+  res: VercelResponse
 ) {
-  const workspaceId =
-    context.workspace.id;
 
-  const jobId =
-    typeof req.query.id === "string"
-      ? req.query.id
-      : null;
+  const {
+    authorization
+  } = await authorizeRequest(req);
+
+
+  const workspaceId =
+    authorization.identity.workspaceId;
+
+
+  const rawId =
+    req.query.id;
+
 
   /*
    * ----------------------------------------------------------
@@ -444,14 +674,27 @@ async function handleGet(
    * ----------------------------------------------------------
    */
 
-  if (jobId) {
+  if (
+    typeof rawId === "string"
+  ) {
+
+    if (!isUuid(rawId)) {
+
+      throw new HttpError(
+        400,
+        "INVALID_INGESTION_JOB_ID",
+        "Invalid ingestion job id"
+      );
+    }
+
+
     const {
       data,
-      error,
-    } = await supabaseAdmin
-      .from("ingestion_jobs")
-      .select(
-        `
+      error
+    } =
+      await supabaseAdmin
+        .from("ingestion_jobs")
+        .select(`
           *,
           data_objects (
             id,
@@ -468,28 +711,56 @@ async function handleGet(
             created_at,
             updated_at
           )
-        `
-      )
-      .eq("workspace_id", workspaceId)
-      .eq("id", jobId)
-      .maybeSingle();
+        `)
+        .eq(
+          "workspace_id",
+          workspaceId
+        )
+        .eq(
+          "id",
+          rawId
+        )
+        .maybeSingle();
+
 
     if (error) {
-      throw error;
+      throw new HttpError(
+        500,
+        "INGESTION_JOB_QUERY_FAILED",
+        "Unable to query ingestion job"
+      );
     }
+
 
     if (!data) {
-      return json(res, 404, {
-        ok: false,
-        error: "Ingestion job tidak ditemukan.",
-      });
+
+      throw new HttpError(
+        404,
+        "INGESTION_JOB_NOT_FOUND",
+        "Ingestion job was not found"
+      );
     }
 
-    return json(res, 200, {
-      ok: true,
-      ingestion: data,
-    });
+
+    return json(
+      res,
+      200,
+      {
+        ok:
+          true,
+
+        service:
+          "SPECIAL ALI",
+
+        component:
+          "INGESTION",
+
+        ingestion:
+          data
+      }
+    );
   }
+
 
   /*
    * ----------------------------------------------------------
@@ -499,24 +770,33 @@ async function handleGet(
 
   const rawLimit =
     typeof req.query.limit === "string"
-      ? Number(req.query.limit)
+      ? Number(
+          req.query.limit
+        )
       : 25;
+
 
   const limit =
     Number.isFinite(rawLimit)
       ? Math.min(
-          Math.max(Math.floor(rawLimit), 1),
+          Math.max(
+            Math.floor(
+              rawLimit
+            ),
+            1
+          ),
           100
         )
       : 25;
 
+
   const {
     data,
-    error,
-  } = await supabaseAdmin
-    .from("ingestion_jobs")
-    .select(
-      `
+    error
+  } =
+    await supabaseAdmin
+      .from("ingestion_jobs")
+      .select(`
         *,
         data_objects (
           id,
@@ -531,78 +811,125 @@ async function handleGet(
           created_at,
           updated_at
         )
-      `
-    )
-    .eq("workspace_id", workspaceId)
-    .order(
-      "created_at",
-      {
-        ascending: false,
-      }
-    )
-    .limit(limit);
+      `)
+      .eq(
+        "workspace_id",
+        workspaceId
+      )
+      .order(
+        "created_at",
+        {
+          ascending:
+            false
+        }
+      )
+      .limit(
+        limit
+      );
+
 
   if (error) {
-    throw error;
+
+    throw new HttpError(
+      500,
+      "INGESTION_JOB_LIST_FAILED",
+      "Unable to query ingestion jobs"
+    );
   }
 
-  return json(res, 200, {
-    ok: true,
-    count:
-      data?.length ?? 0,
 
-    ingestion:
-      data ?? [],
-  });
+  return json(
+    res,
+    200,
+    {
+      ok:
+        true,
+
+      service:
+        "SPECIAL ALI",
+
+      component:
+        "INGESTION",
+
+      count:
+        data?.length ?? 0,
+
+      ingestion:
+        data ?? []
+    }
+  );
 }
+
+
+/* ============================================================
+   HANDLER
+============================================================ */
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
-  try {
-    if (
-      req.method !== "GET" &&
-      req.method !== "POST"
-    ) {
-      res.setHeader(
-        "Allow",
-        "GET, POST"
-      );
 
-      return json(res, 405, {
-        ok: false,
-        error: "Method not allowed.",
+  if (
+    req.method !== "GET" &&
+    req.method !== "POST"
+  ) {
+
+    res.setHeader(
+      "Allow",
+      "GET, POST"
+    );
+
+    return res
+      .status(405)
+      .json({
+        ok:
+          false,
+
+        error:
+          "METHOD_NOT_ALLOWED"
       });
-    }
+  }
 
-    const context =
-      getAuthorizationContext(req);
 
-    if (req.method === "POST") {
+  try {
+
+    if (
+      req.method === "POST"
+    ) {
+
       return await handlePost(
         req,
-        res,
-        context
+        res
       );
     }
+
 
     return await handleGet(
       req,
-      res,
-      context
+      res
     );
 
   } catch (error) {
+
     console.error(
       "SPECIAL ALI ingestion error:",
       error
     );
 
-    return json(res, 500, {
-      ok: false,
-      error:
-        errorMessage(error),
-    });
+
+    const response =
+      errorResponse(
+        error
+      );
+
+
+    return res
+      .status(
+        response.statusCode
+      )
+      .json(
+        response.body
+      );
   }
 }
