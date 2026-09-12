@@ -5627,24 +5627,4 @@ window.SPECIAL_ALI = {
 
 })();
 
-  window.SPECIAL_ALI_READY = {
-    open: openReadyExperience,
-    close: closeReadyExperience,
-    init: initReadyExperience
-  };
-
-  if (
-    document.readyState === "loading"
-  ) {
-
-    document.addEventListener(
-      "DOMContentLoaded",
-      initReadyExperience
-    );
-
-  } else {
-
-    initReadyExperience();
-  }
-
-})();
+  
