@@ -19,45 +19,19 @@ import {
   HttpError
 } from "../../../../../shared/errors/http.js";
 
-
-/* ============================================================
-   SPECIAL ALI
-   EXECUTION RUNNER v0.1
-
-   Purpose:
-
-   QUEUED
-      ↓
-   RUNNING
-      ↓
-   DATA_RECEIVED
-      ↓
-   EXTRACTION
-      ↓
-   CLASSIFICATION
-      ↓
-   VALIDATION
-      ↓
-   DUPLICATE_DETECTION
-      ↓
-   EVIDENCE
-      ↓
-   DATA_READY
-      ↓
-   COMPLETED
-============================================================ */
-
-
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const TERMINAL_STATUSES = new Set([
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED"
+]);
 
-function getExecutionId(
-  req: VercelRequest
-): string {
+const MAX_STAGE_TRANSITIONS = 8;
 
-  const value =
-    req.query.executionId;
+function getExecutionId(req: VercelRequest): string {
+  const value = req.query.executionId;
 
   const executionId =
     Array.isArray(value)
@@ -68,50 +42,33 @@ function getExecutionId(
     typeof executionId !== "string" ||
     !UUID_PATTERN.test(executionId)
   ) {
-
     throw new HttpError(
       400,
       "INVALID_EXECUTION_ID",
       "executionId must be a valid UUID"
     );
-
   }
 
   return executionId;
 }
 
-
-/* ============================================================
-   HANDLER
-============================================================ */
-
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
 
-  if (
-    req.method !== "POST"
-  ) {
-
-    res.setHeader(
-      "Allow",
-      "POST"
-    );
-
-    return res
-      .status(405)
-      .json({
-        ok: false,
-        error: "METHOD_NOT_ALLOWED",
-        message: "Only POST is supported"
-      });
-
+    return res.status(405).json({
+      ok: false,
+      error: "METHOD_NOT_ALLOWED",
+      message: "Only POST is supported"
+    });
   }
 
+  let executionId: string | null = null;
 
   try {
-
     const {
       authorization
     } = await authorizeRequest(req);
@@ -119,13 +76,8 @@ export default async function handler(
     const workspaceId =
       authorization.identity.workspaceId;
 
-    const executionId =
+    executionId =
       getExecutionId(req);
-
-
-    /* --------------------------------------------------------
-       1. LOAD CURRENT EXECUTION
-    -------------------------------------------------------- */
 
     let execution =
       await getExecution(
@@ -133,158 +85,156 @@ export default async function handler(
         workspaceId
       );
 
-
-    /* --------------------------------------------------------
-       2. TERMINAL EXECUTION
-    -------------------------------------------------------- */
-
+    /*
+     * Already finished:
+     * return authoritative backend state.
+     */
     if (
-      execution.status === "COMPLETED" ||
-      execution.status === "FAILED" ||
-      execution.status === "CANCELLED"
+      TERMINAL_STATUSES.has(
+        execution.status
+      )
     ) {
-
-      return res
-        .status(200)
-        .json({
-          ok: true,
-          execution,
-          source:
-            "EXECUTION_RUNNER"
-        });
-
+      return res.status(200).json({
+        ok: true,
+        execution,
+        source: "EXECUTION_RUNNER"
+      });
     }
 
-
-    /* --------------------------------------------------------
-       3. START QUEUED EXECUTION
-    -------------------------------------------------------- */
-
+    /*
+     * QUEUED -> RUNNING
+     */
     if (
       execution.status === "QUEUED"
     ) {
-
       execution =
         await startExecution(
           executionId
         );
-
     }
 
-
-    /* --------------------------------------------------------
-       4. ADVANCE PIPELINE
-    -------------------------------------------------------- */
-
     /*
-      Each request advances exactly one stage.
+     * Execute the complete deterministic
+     * lifecycle for v0.1.
+     *
+     * The actual domain work will be plugged
+     * into these stages next:
+     *
+     * EXTRACTION
+     * CLASSIFICATION
+     * VALIDATION
+     * DUPLICATE_DETECTION
+     * EVIDENCE
+     * DATA_READY
+     */
+    let transitions = 0;
 
-      This keeps v0.1 deterministic and prevents
-      a single serverless request from running an
-      uncontrolled long process.
-    */
-
-    if (
-      execution.status === "RUNNING"
+    while (
+      execution.status === "RUNNING" &&
+      transitions < MAX_STAGE_TRANSITIONS
     ) {
-
       execution =
         await advanceExecution(
           executionId
         );
 
+      transitions += 1;
+
+      if (
+        execution.status === "COMPLETED" ||
+        execution.status === "FAILED" ||
+        execution.status === "CANCELLED"
+      ) {
+        break;
+      }
     }
 
+    /*
+     * Safety guard.
+     *
+     * If the lifecycle somehow requires more
+     * transitions than expected, fail explicitly
+     * instead of silently returning an incomplete
+     * execution.
+     */
+    if (
+      execution.status === "RUNNING"
+    ) {
+      throw new HttpError(
+        500,
+        "EXECUTION_LIFECYCLE_INCOMPLETE",
+        "Execution lifecycle did not reach a terminal state"
+      );
+    }
 
-    /* --------------------------------------------------------
-       5. FINAL RESPONSE
-    -------------------------------------------------------- */
-
-    return res
-      .status(200)
-      .json({
-
-        ok: true,
-
-        execution,
-
-        source:
-          "EXECUTION_RUNNER"
-
-      });
-
+    return res.status(200).json({
+      ok: true,
+      execution,
+      source: "EXECUTION_RUNNER",
+      transitions
+    });
 
   } catch (error) {
 
+    /*
+     * Best-effort failure persistence.
+     *
+     * Never replace the original error response
+     * with a secondary persistence error.
+     */
     try {
+      if (executionId) {
 
-      const {
-        authorization
-      } = await authorizeRequest(req);
+        const {
+          authorization
+        } = await authorizeRequest(req);
 
-      const executionId =
-        getExecutionId(req);
+        const existing =
+          await getExecution(
+            executionId,
+            authorization.identity.workspaceId
+          );
 
-      /*
-        Only attempt failure recording when
-        the execution belongs to the caller's
-        workspace.
-      */
+        if (
+          !TERMINAL_STATUSES.has(
+            existing.status
+          )
+        ) {
+          await failExecution(
+            executionId,
+            {
+              code:
+                error instanceof HttpError
+                  ? error.code
+                  : "EXECUTION_RUNNER_FAILED",
 
-      const existing =
-        await getExecution(
-          executionId,
-          authorization.identity.workspaceId
-        );
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Execution runner failed",
 
-      if (
-        existing.status !== "COMPLETED" &&
-        existing.status !== "FAILED" &&
-        existing.status !== "CANCELLED"
-      ) {
+              stage:
+                existing.currentStage,
 
-        await failExecution(
-          executionId,
-          {
-            code:
-              error instanceof HttpError
-                ? error.code
-                : "EXECUTION_RUNNER_FAILED",
-
-            message:
-              error instanceof Error
-                ? error.message
-                : "Execution runner failed",
-
-            stage:
-              existing.currentStage,
-
-            requestId:
-              authorization.identity.requestId
-          }
-        );
-
+              requestId:
+                authorization.identity.requestId
+            }
+          );
+        }
       }
-
     } catch {
       /*
-        Never replace the original API error
-        with a secondary failure-recording error.
-      */
+       * Preserve original error.
+       */
     }
-
 
     const response =
       errorResponse(error);
 
-    return res
-      .status(
-        response.statusCode
-      )
-      .json(
-        response.body
-      );
-
+    return res.status(
+      response.statusCode
+    ).json(
+      response.body
+    );
   }
-
 }
