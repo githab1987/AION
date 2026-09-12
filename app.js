@@ -119,6 +119,12 @@ const state = {
   pendingConfirmation: null,
 
   backendConfigured: false
+
+  language:
+  localStorage.getItem("special_ali_language") === "en"
+    ? "en"
+    : "id"
+
 };
 
 
@@ -504,6 +510,398 @@ const ALI_MESSAGES = {
   ]
 };
 
+/* ============================================================
+   SPECIAL ALI — LANGUAGE ENGINE
+============================================================ */
+
+const UI_LANGUAGE = {
+
+  id: {
+    nav: {
+      ali: "ALI Command Center",
+      tasks: "Tugas",
+      "action-center": "Pusat Aksi",
+      activity: "Aktivitas",
+
+      work: "Pekerjaan",
+      investigation: "Investigasi",
+      reconciliation: "Rekonsiliasi",
+      findings: "Temuan",
+      exceptions: "Pengecualian",
+      unresolved: "Belum Terselesaikan",
+
+      "accounting-overview": "Ikhtisar Akuntansi",
+      transactions: "Transaksi",
+      journal: "Jurnal",
+      ledger: "Buku Besar",
+      accounts: "Akun",
+      receivables: "Piutang",
+      payables: "Utang",
+      inventory: "Persediaan",
+      "fixed-assets": "Aset Tetap",
+      adjustments: "Penyesuaian",
+      "period-close": "Penutupan Periode",
+      "financial-reports": "Laporan Keuangan",
+
+      "tax-overview": "Ikhtisar Pajak",
+      "tax-data": "Data Pajak",
+      "tax-calculations": "Perhitungan Pajak",
+      "tax-reconciliation": "Rekonsiliasi Pajak",
+      "tax-rules": "Aturan Pajak",
+      "tax-issues": "Masalah Pajak",
+      "tax-reports": "Laporan / Ekspor Pajak",
+
+      "data-overview": "Pusat Data",
+      sources: "Sumber",
+      documents: "Dokumen",
+      ingestion: "Ingestion Data",
+      ocr: "OCR / Ekstraksi",
+      "data-validation": "Validasi Data",
+      "data-health": "Kesehatan Data",
+      duplicates: "Duplikasi",
+      "reset-data": "Reset Data",
+      "delete-data": "Hapus Data",
+      "refresh-audit": "Refresh Audit",
+
+      "evidence-registry": "Evidence Registry",
+      proof: "Proof",
+      conflicts: "Konflik",
+
+      "pending-approval": "Menunggu Persetujuan",
+      decisions: "Keputusan",
+      "decision-history": "Riwayat Keputusan",
+
+      "control-report": "Laporan Kontrol",
+      "accounting-report": "Laporan Akuntansi",
+      "tax-report": "Laporan Pajak",
+      "audit-report": "Laporan Audit",
+
+      "execution-log": "Execution Log",
+      "event-log": "Event Log",
+      "audit-trail": "Audit Trail",
+
+      account: "Akun",
+      workspace: "Workspace",
+      members: "Anggota & Peran",
+      permissions: "Permissions",
+      "accounting-settings": "Pengaturan Akuntansi",
+      "tax-settings": "Pengaturan Pajak",
+      integrations: "Integrasi",
+      preferences: "Preferensi"
+    },
+
+    section: {
+      ALI: "ALI",
+      WORK: "PEKERJAAN",
+      ACCOUNTING: "AKUNTANSI",
+      TAX: "PAJAK",
+      "DATA CENTER": "PUSAT DATA",
+      EVIDENCE: "EVIDENCE",
+      "HUMAN GATE": "HUMAN GATE",
+      REPORTS: "LAPORAN",
+      AUDIT: "AUDIT",
+      SETTINGS: "PENGATURAN"
+    },
+
+    command: {
+      eyebrow: "ALI PERSONAL COMMAND CENTER",
+      welcome: "Selamat datang",
+      workspaceReady: "Workspace Anda siap.",
+      workspaceData:
+        "Workspace Anda sudah memiliki data. Mari lihat apa yang membutuhkan perhatian.",
+      workspaceEmpty:
+        "Workspace Anda masih kosong. Tidak masalah. Mulai dengan memasukkan data.",
+
+      uploadLabel: "MASUKKAN DATA",
+      uploadTitle: "Unggah Data",
+      uploadMore: "Tambahkan Data",
+      uploadCopy:
+        "Unggah file dari perangkat Anda. ALI akan memeriksa, memvalidasi, dan menghubungkan data dengan evidence sebelum digunakan.",
+      uploadButton: "+ Unggah Data",
+      workspaceButton: "Buka Workspace",
+      ingestionButton: "Lihat Ingestion",
+
+      operate: "OPERASIKAN ALI",
+      askTitle: "Beritahu ALI apa yang Anda butuhkan.",
+      askPlaceholder:
+        "Contoh: Periksa invoice pembelian yang belum direkonsiliasi.",
+      askButton: "Tanya ALI",
+
+      documents: "Dokumen diproses",
+      transactions: "Transaksi",
+      unresolved: "Belum terselesaikan",
+      control: "Status kontrol",
+
+      ready: "Siap",
+
+      englishMorning: "Selamat pagi",
+      englishAfternoon: "Selamat siang",
+      englishEvening: "Selamat malam"
+    }
+  },
+
+  en: {
+    nav: {
+      ali: "ALI Command Center",
+      tasks: "Tasks",
+      "action-center": "Action Center",
+      activity: "Activity",
+
+      work: "Work",
+      investigation: "Investigation",
+      reconciliation: "Reconciliation",
+      findings: "Findings",
+      exceptions: "Exceptions",
+      unresolved: "Unresolved",
+
+      "accounting-overview": "Accounting Overview",
+      transactions: "Transactions",
+      journal: "Journal",
+      ledger: "Ledger",
+      accounts: "Accounts",
+      receivables: "Receivables",
+      payables: "Payables",
+      inventory: "Inventory",
+      "fixed-assets": "Fixed Assets",
+      adjustments: "Adjustments",
+      "period-close": "Period Close",
+      "financial-reports": "Financial Reports",
+
+      "tax-overview": "Tax Overview",
+      "tax-data": "Tax Data",
+      "tax-calculations": "Tax Calculations",
+      "tax-reconciliation": "Tax Reconciliation",
+      "tax-rules": "Tax Rules",
+      "tax-issues": "Tax Issues",
+      "tax-reports": "Tax Reports / Export",
+
+      "data-overview": "Data Center",
+      sources: "Sources",
+      documents: "Documents",
+      ingestion: "Data Ingestion",
+      ocr: "OCR / Extraction",
+      "data-validation": "Data Validation",
+      "data-health": "Data Health",
+      duplicates: "Duplicates",
+      "reset-data": "Reset Data",
+      "delete-data": "Delete Data",
+      "refresh-audit": "Refresh Audit",
+
+      "evidence-registry": "Evidence Registry",
+      proof: "Proof",
+      conflicts: "Conflicts",
+
+      "pending-approval": "Pending Approval",
+      decisions: "Decisions",
+      "decision-history": "Decision History",
+
+      "control-report": "Control Report",
+      "accounting-report": "Accounting Report",
+      "tax-report": "Tax Report",
+      "audit-report": "Audit Report",
+
+      "execution-log": "Execution Log",
+      "event-log": "Event Log",
+      "audit-trail": "Audit Trail",
+
+      account: "Account",
+      workspace: "Workspace",
+      members: "Members & Roles",
+      permissions: "Permissions",
+      "accounting-settings": "Accounting Settings",
+      "tax-settings": "Tax Settings",
+      integrations: "Integrations",
+      preferences: "Preferences"
+    },
+
+    section: {
+      ALI: "ALI",
+      WORK: "WORK",
+      ACCOUNTING: "ACCOUNTING",
+      TAX: "TAX",
+      "DATA CENTER": "DATA CENTER",
+      EVIDENCE: "EVIDENCE",
+      "HUMAN GATE": "HUMAN GATE",
+      REPORTS: "REPORTS",
+      AUDIT: "AUDIT",
+      SETTINGS: "SETTINGS"
+    },
+
+    command: {
+      eyebrow: "ALI PERSONAL COMMAND CENTER",
+      welcome: "Welcome",
+      workspaceReady: "Your workspace is ready.",
+      workspaceData:
+        "Your workspace already has data. Let's see what needs your attention.",
+      workspaceEmpty:
+        "Your workspace is empty. That's okay. Start by adding your data.",
+
+      uploadLabel: "DATA INTAKE",
+      uploadTitle: "Upload Your Data",
+      uploadMore: "Add More Data",
+      uploadCopy:
+        "Upload files from your device. ALI will inspect, validate and connect data with evidence before it is used.",
+      uploadButton: "+ Upload Data",
+      workspaceButton: "Open Workspace",
+      ingestionButton: "View Ingestion",
+
+      operate: "OPERATE WITH ALI",
+      askTitle: "Tell ALI what you need.",
+      askPlaceholder:
+        "Example: Check purchase invoices that have not been reconciled.",
+      askButton: "Ask ALI",
+
+      documents: "Processed documents",
+      transactions: "Transactions",
+      unresolved: "Unresolved",
+      control: "Control state",
+
+      ready: "Ready",
+
+      englishMorning: "Good morning",
+      englishAfternoon: "Good afternoon",
+      englishEvening: "Good evening"
+    }
+  }
+
+};
+
+
+function getLanguage() {
+  return state.language === "en"
+    ? "en"
+    : "id";
+}
+
+
+function t(path) {
+
+  const language =
+    UI_LANGUAGE[getLanguage()];
+
+  return path
+    .split(".")
+    .reduce(
+      (value, key) =>
+        value?.[key],
+      language
+    ) || path;
+
+}
+
+
+function setLanguage(language) {
+
+  const nextLanguage =
+    language === "en"
+      ? "en"
+      : "id";
+
+  state.language =
+    nextLanguage;
+
+  localStorage.setItem(
+    "special_ali_language",
+    nextLanguage
+  );
+
+  updateLanguageButtons();
+  applyNavigationLanguage();
+
+  /*
+    Re-render the current route through
+    the existing application router.
+
+    No DOM observer.
+    No recovery loop.
+  */
+  navigate(state.route);
+
+}
+
+
+function updateLanguageButtons() {
+
+  const idButton =
+    $("#languageID");
+
+  const enButton =
+    $("#languageEN");
+
+  if (!idButton || !enButton) {
+    return;
+  }
+
+  idButton.classList.toggle(
+    "active",
+    getLanguage() === "id"
+  );
+
+  enButton.classList.toggle(
+    "active",
+    getLanguage() === "en"
+  );
+
+}
+
+
+function applyNavigationLanguage() {
+
+  $$(".nav-item").forEach(
+    button => {
+
+      const route =
+        button.dataset.route;
+
+      const text =
+        button.querySelector(
+          ".nav-text"
+        );
+
+      if (!text || !UI_LANGUAGE[getLanguage()].nav[route]) {
+        return;
+      }
+
+      text.textContent =
+        UI_LANGUAGE[getLanguage()].nav[route];
+
+    }
+  );
+
+  $$(".nav-label").forEach(
+    label => {
+
+      const key =
+        label.textContent
+          .trim()
+          .toUpperCase();
+
+      const translated =
+        UI_LANGUAGE[getLanguage()].section[key];
+
+      if (translated) {
+        label.textContent =
+          translated;
+      }
+
+    }
+  );
+
+  updateLanguageButtons();
+
+}
+
+
+function getRouteTitle(route) {
+
+  return (
+    UI_LANGUAGE[getLanguage()]
+      .nav[route] ||
+    ROUTES[route]?.title ||
+    route
+  );
+
+}
 
 /* ============================================================
    DOM HELPERS
@@ -1782,7 +2180,9 @@ async function navigate(route) {
 
 
   $("#topbarTitle").textContent =
-    ROUTES[route].title;
+  getRouteTitle(route);
+
+  applyNavigationLanguage();
 
 
   closeMobileSidebar();
@@ -1879,52 +2279,86 @@ async function renderRoute(route) {
    COMMAND CENTER
 ============================================================ */
 
-async function renderCommandCenter() {
+ async function renderCommandCenter() {
 
   const firstName =
     state.profile?.full_name?.split(" ")[0] ||
     state.user?.user_metadata?.full_name?.split(" ")[0] ||
-    "there";
-
+    (getLanguage() === "id" ? "Anda" : "there");
 
   const greeting =
     getTimeGreeting();
-
 
   const hasData =
     Boolean(
       state.workspace?.has_data
     );
 
+  const command =
+    UI_LANGUAGE[getLanguage()].command;
+
+  const welcomeTitle =
+    hasData
+      ? `${command.welcome}, ${escapeHTML(firstName)}.`
+      : command.workspaceReady;
+
+  const welcomeCopy =
+    hasData
+      ? command.workspaceData
+      : command.workspaceEmpty;
+
+  const uploadTitle =
+    hasData
+      ? command.uploadMore
+      : command.uploadTitle;
+
+  const greetingText =
+    `${greeting} ${escapeHTML(firstName)}. ${
+      hasData
+        ? command.workspaceData
+        : command.workspaceEmpty
+    }`;
 
   $("#content").innerHTML = `
 
     <div class="command-head">
 
       <div class="eyebrow">
-        ALI PERSONAL COMMAND CENTER
+        ${command.eyebrow}
       </div>
 
       <h1 class="page-title">
-        ${
-          hasData
-            ? `Welcome back, ${escapeHTML(firstName)}.`
-            : `Your workspace is ready.`
-        }
+        ${welcomeTitle}
       </h1>
 
       <p class="page-description">
-        ${
-          hasData
-            ? "Your financial control workspace is active. Let’s see what needs your attention."
-            : "Your workspace is empty. That’s okay. Give ALI the data first."
-        }
+        ${welcomeCopy}
       </p>
 
       <div
         class="ali-line"
         id="commandAliLine"
       ></div>
+
+      <div class="welcome-actions">
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          onclick="navigate('workspace')"
+        >
+          ${command.workspaceButton}
+        </button>
+
+        <button
+          class="btn btn-green"
+          type="button"
+          onclick="openFilePicker()"
+        >
+          ${command.uploadButton}
+        </button>
+
+      </div>
 
     </div>
 
@@ -1938,22 +2372,15 @@ async function renderCommandCenter() {
         </div>
 
         <div class="eyebrow">
-          DATA INTAKE
+          ${command.uploadLabel}
         </div>
 
         <div class="card-title">
-          ${
-            hasData
-              ? "Add more data"
-              : "Upload Your Data"
-          }
+          ${uploadTitle}
         </div>
 
         <div class="card-copy">
-          Upload files directly from your computer or device.
-          ALI will not treat extracted information as authoritative
-          until extraction, validation, duplicate checks and evidence
-          registration have completed.
+          ${command.uploadCopy}
         </div>
 
         <div class="formats">
@@ -1967,7 +2394,7 @@ async function renderCommandCenter() {
             type="button"
             onclick="openFilePicker()"
           >
-            + Upload Data
+            ${command.uploadButton}
           </button>
 
           <button
@@ -1975,7 +2402,7 @@ async function renderCommandCenter() {
             type="button"
             onclick="navigate('ingestion')"
           >
-            View Ingestion
+            ${command.ingestionButton}
           </button>
 
         </div>
@@ -1986,16 +2413,16 @@ async function renderCommandCenter() {
       <section class="card ask-card">
 
         <div class="eyebrow">
-          OPERATE WITH ALI
+          ${command.operate}
         </div>
 
         <div class="card-title">
-          Tell ALI what you need.
+          ${command.askTitle}
         </div>
 
         <textarea
           id="aliInput"
-          placeholder="Example: Periksa invoice pembelian yang belum direkonsiliasi."
+          placeholder="${command.askPlaceholder}"
         ></textarea>
 
         <div style="margin-top:12px">
@@ -2005,7 +2432,7 @@ async function renderCommandCenter() {
             type="button"
             onclick="submitALIRequest()"
           >
-            Ask ALI
+            ${command.askButton}
           </button>
 
         </div>
@@ -2014,8 +2441,11 @@ async function renderCommandCenter() {
           id="askResponse"
           class="ask-response"
         >
-          ALI can reason and propose actions, but authoritative
-          state changes remain controlled by the backend.
+          ${
+            getLanguage() === "id"
+              ? "ALI dapat menganalisis dan mengusulkan tindakan, tetapi perubahan state yang authoritative tetap dikendalikan backend."
+              : "ALI can reason and propose actions, but authoritative state changes remain controlled by the backend."
+          }
         </div>
 
       </section>
@@ -2030,34 +2460,37 @@ async function renderCommandCenter() {
           ${hasData ? "—" : "0"}
         </div>
         <div class="state-label">
-          Processed documents
+          ${command.documents}
         </div>
       </div>
+
 
       <div class="state-card">
         <div class="state-value">
           ${hasData ? "—" : "0"}
         </div>
         <div class="state-label">
-          Transactions
+          ${command.transactions}
         </div>
       </div>
+
 
       <div class="state-card">
         <div class="state-value">
           ${hasData ? "—" : "0"}
         </div>
         <div class="state-label">
-          Unresolved
+          ${command.unresolved}
         </div>
       </div>
 
+
       <div class="state-card">
         <div class="state-value">
-          ${hasData ? "—" : "Ready"}
+          ${hasData ? "—" : command.ready}
         </div>
         <div class="state-label">
-          Control state
+          ${command.control}
         </div>
       </div>
 
@@ -2065,19 +2498,13 @@ async function renderCommandCenter() {
 
   `;
 
-
   typeALI(
-    `${greeting} ${escapeHTML(firstName)}. ${
-      hasData
-        ? "Workspace ini sudah memiliki data. Saya siap membantu memeriksanya."
-        : "Workspace ini masih kosong. Kita bisa mulai dari data yang Anda punya."
-    }`,
+    greetingText,
     "COMMAND_CENTER"
   );
 
 }
-
-
+        
 /* ============================================================
    TIME AWARE GREETING
 ============================================================ */
@@ -2087,21 +2514,30 @@ function getTimeGreeting() {
   const hour =
     new Date().getHours();
 
+  if (getLanguage() === "id") {
+
+    if (hour < 11) {
+      return "Selamat pagi";
+    }
+
+    if (hour < 17) {
+      return "Selamat siang";
+    }
+
+    return "Selamat malam";
+  }
 
   if (hour < 11) {
-    return "Good morning.";
+    return "Good morning";
   }
-
 
   if (hour < 17) {
-    return "Good afternoon.";
+    return "Good afternoon";
   }
 
-
-  return "Good evening.";
+  return "Good evening";
 
 }
-
 
 /* ============================================================
    ALI TOGGLE
