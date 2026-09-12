@@ -4485,35 +4485,6 @@ window.SPECIAL_ALI = {
 
 };
 
-/* ============================================================
-   SPECIAL ALI — UI RECOVERY LAYER
-   Scope:
-   - language selector
-   - post-sign-in ALI welcome
-   - Workspace shortcut
-   - Upload Data shortcut
-   - shortcut navigation
-   - OCR icon size guard
-
-   IMPORTANT:
-   This layer does NOT replace:
-   - showApp()
-   - navigate()
-   - authentication
-   - Supabase
-   - backend state
-   - Accounting Core
-   - Tax Core
-============================================================ */
-
-(function SPECIAL_ALI_UI_RECOVERY () {
-
-  "use strict";
-
-  const UI = {
-    language: localStorage.getItem("special_ali_language") || "id"
-  };
-
 
   /* ==========================================================
      LANGUAGE
