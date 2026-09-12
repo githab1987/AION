@@ -1371,6 +1371,83 @@
   opacity: 0.42;
 }
 
+/* ============================================================
+   SPECIAL ALI — READY EXPERIENCE SAFETY
+   Hidden must really be hidden.
+============================================================ */
+
+.ready-experience[hidden] {
+  display: none !important;
+}
+
+/* Keep Ready Experience inside the application flow,
+   never above the navigation layer. */
+.ready-experience {
+  position: relative;
+  z-index: 1;
+}
+
+/* Match the existing SPECIAL ALI / Get Started button language */
+.ready-action-button {
+  appearance: none;
+  border: 0;
+  border-radius: 14px;
+  min-height: 52px;
+  padding: 0 28px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+
+  cursor: pointer;
+
+  background: var(--text-primary, #111111);
+  color: var(--surface, #ffffff);
+
+  transition:
+    transform 160ms ease,
+    opacity 160ms ease,
+    background 160ms ease;
+}
+
+.ready-action-button:hover {
+  transform: translateY(-1px);
+  opacity: 0.94;
+}
+
+.ready-action-button:active {
+  transform: translateY(0);
+}
+
+.ready-action-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+/* Keep the two actions side-by-side like Get Started */
+.ready-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Mobile */
+@media (max-width: 520px) {
+  .ready-action-button {
+    width: 100%;
+  }
+
+  .ready-actions {
+    width: 100%;
+  }
+}
+    
 /* ------------------------------------------------------------
    RESPONSIVE — TABLET
 ------------------------------------------------------------ */
