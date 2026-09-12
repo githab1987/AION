@@ -2008,7 +2008,190 @@
 
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="./app.js"></script>
+  <script src="./app.js">
+
+   /* ============================================================
+   SPECIAL ALI — UI RECOVERY CSS
+============================================================ */
+
+.special-ali-language-selector {
+  position: fixed;
+  top: 18px;
+  right: 24px;
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  padding: 7px 10px;
+
+  background: rgba(255,255,255,.94);
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+
+  box-shadow:
+    0 8px 24px rgba(17,24,39,.08);
+
+  font-size: 11px;
+}
+
+.special-ali-language-label {
+  color: #9ca3af;
+  margin-right: 3px;
+}
+
+.special-ali-language-button {
+  border: 0;
+  background: transparent;
+
+  color: #6b7280;
+
+  padding: 4px 6px;
+  border-radius: 7px;
+
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.special-ali-language-button.active {
+  background: #111827;
+  color: white;
+}
+
+.special-ali-language-divider {
+  color: #d1d5db;
+}
+
+
+.special-ali-welcome-layer {
+  width: 100%;
+  margin: 0 0 24px;
+}
+
+.special-ali-welcome-inner {
+  width: 100%;
+  max-width: 1000px;
+}
+
+.special-ali-welcome-message {
+  margin-bottom: 18px;
+
+  color: #3f4650;
+
+  font-size: 18px;
+  line-height: 1.5;
+
+  letter-spacing: -.02em;
+}
+
+
+.special-ali-shortcuts {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 14px;
+}
+
+.special-ali-shortcut {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+
+  gap: 14px;
+
+  padding: 17px 18px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+
+  background: #fff;
+
+  color: #111827;
+
+  text-align: left;
+
+  box-shadow:
+    0 6px 24px rgba(17,24,39,.035);
+
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.special-ali-shortcut:hover {
+  transform: translateY(-1px);
+
+  border-color: #cfd5db;
+
+  box-shadow:
+    0 10px 30px rgba(17,24,39,.07);
+}
+
+.special-ali-shortcut-icon {
+  width: 42px;
+  height: 42px;
+
+  min-width: 42px;
+  min-height: 42px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 12px;
+
+  background: #f1f8f4;
+  color: #12804d;
+
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.special-ali-shortcut-copy {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.special-ali-shortcut-copy strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.special-ali-shortcut-copy small {
+  color: #8b929b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
+@media (max-width: 700px) {
+
+  .special-ali-language-selector {
+    top: 10px;
+    right: 10px;
+  }
+
+  .special-ali-welcome-message {
+    font-size: 16px;
+  }
+
+  .special-ali-shortcuts {
+    grid-template-columns: 1fr;
+  }
+
+}
+    
+  </script>
   <script src="./control-center.js"></script>
 
 </body>
