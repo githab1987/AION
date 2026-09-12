@@ -3120,6 +3120,28 @@ async function uploadFilesToSignedUrls(
 
   }
 
+
+async function runExecution(
+  executionId
+) {
+
+  if (!executionId) {
+    throw new Error(
+      "Execution ID tidak tersedia."
+    );
+  }
+
+  const result =
+    await apiRequest(
+      `/agent/executions/${encodeURIComponent(
+        executionId
+      )}/run`,
+      {
+        method: "POST"
+      }
+    );
+
+  return result.execution;
 }
 
 
