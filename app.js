@@ -2185,113 +2185,63 @@ function getInitials(name) {
 
 async function navigate(route) {
 
+  /*
+    SPECIAL ALI — READY EXPERIENCE
+
+    READY hanya digunakan sebagai entry experience
+    setelah Sign In.
+
+    Begitu user melakukan navigasi ke aplikasi,
+    READY harus ditutup dan tidak boleh menghalangi
+    route/submenu apa pun.
+  */
+
+  if (
+    window.SPECIAL_ALI_READY &&
+    typeof window.SPECIAL_ALI_READY.close === "function"
+  ) {
+    window.SPECIAL_ALI_READY.close();
+  }
+
+  /*
+    Pastikan route valid.
+  */
   if (!ROUTES[route]) {
     route = "ali";
   }
 
+  /*
+    Simpan route aktif.
+  */
+  state.route = route;
 
-  state.route =
-    route;
-
-
+  /*
+    Update navigasi aktif.
+  */
   updateActiveNavigation();
 
-
+  /*
+    Update judul halaman.
+  */
   $("#topbarTitle").textContent =
-  getRouteTitle(route);
+    getRouteTitle(route);
 
+  /*
+    Terapkan bahasa aktif.
+  */
   applyNavigationLanguage();
 
-
+  /*
+    Tutup mobile sidebar setelah user
+    memilih menu.
+  */
   closeMobileSidebar();
 
-
+  /*
+    Render halaman sebenarnya.
+  */
   await renderRoute(route);
-
 }
-
-
-function updateActiveNavigation() {
-
-  $$(".nav-item").forEach(
-    button => {
-
-      button.classList.toggle(
-        "active",
-        button.dataset.route ===
-        state.route
-      );
-
-    }
-  );
-
-}
-
-
-async function renderRoute(route) {
-
-  switch (route) {
-
-    case "ali":
-      renderCommandCenter();
-      break;
-
-    case "work":
-      renderWork();
-      break;
-
-    case "investigation":
-      renderInvestigation();
-      break;
-
-    case "reconciliation":
-      renderReconciliation();
-      break;
-
-    case "findings":
-      renderFindings();
-      break;
-
-    case "exceptions":
-      renderExceptions();
-      break;
-
-    case "unresolved":
-      renderUnresolved();
-      break;
-
-    case "ocr":
-      renderOCR();
-      break;
-
-    case "ingestion":
-      renderIngestion();
-      break;
-
-    case "reset-data":
-      renderResetData();
-      break;
-
-    case "delete-data":
-      renderDeleteData();
-      break;
-
-    case "refresh-audit":
-      renderRefreshAudit();
-      break;
-
-    case "account":
-      renderAccount();
-      break;
-
-    default:
-      renderGenericPage(route);
-      break;
-
-  }
-
-}
-
 
 /* ============================================================
    COMMAND CENTER
