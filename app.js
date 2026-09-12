@@ -5268,23 +5268,231 @@ window.SPECIAL_ALI = {
     }
   }
 
-  function initReadyExperience() {
+  /* ============================================================
+   SPECIAL ALI — READY EXPERIENCE
+   SAFE INTERACTION VERSION
+============================================================ */
 
-    bindReadyActions();
+(function initSpecialAliReadyController() {
+
+  let readyElement = null;
+  let initialized = false;
+  let opening = false;
+
+  function getReadyElement() {
+    if (readyElement && document.contains(readyElement)) {
+      return readyElement;
+    }
+
+    readyElement =
+      document.getElementById(
+        "specialAliReadyExperience"
+      );
+
+    return readyElement;
+  }
+
+  function forceCloseReadyExperience() {
+
+    const ready =
+      getReadyElement();
+
+    if (!ready) {
+      return;
+    }
 
     /*
-      The ready experience is intentionally
-      NOT forced immediately here.
-
-      Existing authentication and Sign In
-      remain authoritative.
+      First remove the visual layer.
     */
+    ready.hidden = true;
+
+    /*
+      Explicitly disable pointer interaction.
+      This is the critical safety mechanism.
+    */
+    ready.style.pointerEvents = "none";
+    ready.style.visibility = "hidden";
+    ready.style.opacity = "0";
+
+    /*
+      Never allow READY to lock body scrolling
+      or interaction after it has closed.
+    */
+    document.body.classList.remove(
+      "special-ali-ready-open"
+    );
+
+    document.documentElement.classList.remove(
+      "special-ali-ready-open"
+    );
+
+    state.aliVisible = false;
+    opening = false;
+  }
+
+  function openReadyExperience() {
+
+    const ready =
+      getReadyElement();
+
+    if (!ready) {
+      return false;
+    }
+
+    /*
+      Prevent duplicate opens.
+    */
+    if (opening && !ready.hidden) {
+      return true;
+    }
+
+    opening = true;
+
+    /*
+      Make sure stale inline styles from a previous
+      close do not survive into the next opening.
+    */
+    ready.style.pointerEvents = "auto";
+    ready.style.visibility = "visible";
+    ready.style.opacity = "1";
+
+    ready.hidden = false;
+
+    document.body.classList.add(
+      "special-ali-ready-open"
+    );
+
+    document.documentElement.classList.add(
+      "special-ali-ready-open"
+    );
+
+    state.aliVisible = true;
+    state.aliOpenCount =
+      Number(state.aliOpenCount || 0) + 1;
+
+    const message =
+      ready.querySelector(
+        "#specialAliReadyMessage"
+      );
+
+    if (message) {
+
+      const messages =
+        Array.isArray(ALI_MESSAGES?.openAgain)
+          ? ALI_MESSAGES.openAgain
+          : [];
+
+      if (messages.length) {
+        const index =
+          (state.aliOpenCount - 1) %
+          messages.length;
+
+        message.textContent =
+          messages[index];
+      }
+    }
+
+    /*
+      READY is now safely open.
+    */
+    opening = false;
+
+    return true;
+  }
+
+  function closeReadyExperience() {
+    forceCloseReadyExperience();
+    return true;
+  }
+
+  function initReadyExperience() {
+
+    const ready =
+      getReadyElement();
+
+    if (!ready) {
+      return false;
+    }
+
+    if (initialized) {
+      return true;
+    }
+
+    initialized = true;
+
+    /*
+      Defensive event delegation.
+      Even if an inline onclick fails later,
+      these buttons still close the fullscreen
+      interaction layer before navigation.
+    */
+    ready.addEventListener(
+      "click",
+      function(event) {
+
+        const target =
+          event.target instanceof Element
+            ? event.target.closest(
+                ".ready-action-button"
+              )
+            : null;
+
+        if (!target) {
+          return;
+        }
+
+        /*
+          Remove the fullscreen blocker immediately.
+        */
+        forceCloseReadyExperience();
+
+      },
+      true
+    );
+
+    /*
+      Initial state MUST be non-blocking.
+    */
+    forceCloseReadyExperience();
+
+    return true;
   }
 
   /*
-    Expose only the new additive feature.
-    Existing application functions are untouched.
+    Public controller.
   */
+
+   
+  window.SPECIAL_ALI_READY = {
+    open: openReadyExperience,
+    close: closeReadyExperience,
+    init: initReadyExperience
+  };
+
+  /*
+    Initialize as soon as DOM is available.
+  */
+  if (
+    document.readyState === "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      function() {
+        initReadyExperience();
+      },
+      {
+        once: true
+      }
+    );
+
+  } else {
+
+    initReadyExperience();
+
+  }
+
+})();
 
   window.SPECIAL_ALI_READY = {
     open: openReadyExperience,
