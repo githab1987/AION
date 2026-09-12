@@ -4330,6 +4330,468 @@ document.addEventListener(
   }
 );
 
+/* ============================================================
+   SPECIAL ALI UI RECOVERY
+   - Indonesian / English
+   - Post sign-in ALI welcome
+   - Workspace shortcut
+   - Upload Data shortcut
+   - Stable navigation
+   - OCR icon size protection
+============================================================ */
+
+const SPECIAL_ALI_LANGUAGE_KEY = "special_ali_language";
+
+const SPECIAL_ALI_I18N = {
+  id: {
+    language: "Bahasa",
+    workspace: "Workspace",
+    uploadData: "Unggah Data",
+    ingestion: "Ingestion",
+    welcome: "Saya siap. Mau apa kita kali ini?",
+    workspaceDescription:
+      "Buka dashboard workspace dan lihat kondisi kontrol keuangan.",
+    uploadDescription:
+      "Unggah dokumen untuk diproses melalui ingestion pipeline.",
+    dashboard: "Dashboard Workspace",
+    dashboardDescription:
+      "Workspace siap. Kita mulai dari data yang benar-benar tersedia.",
+    openWorkspace: "Buka Workspace",
+    openUpload: "Unggah Data",
+    askALI: "Tanya ALI",
+    ocr: "OCR / Extraction",
+    processing: "Memeriksa data",
+    ready: "Siap"
+  },
+
+  en: {
+    language: "Language",
+    workspace: "Workspace",
+    uploadData: "Upload Data",
+    ingestion: "Ingestion",
+    welcome: "I’m ready. What shall we work on this time?",
+    workspaceDescription:
+      "Open the workspace dashboard and review financial control status.",
+    uploadDescription:
+      "Upload documents through the controlled ingestion pipeline.",
+    dashboard: "Workspace Dashboard",
+    dashboardDescription:
+      "Your workspace is ready. Let’s start with the data that actually exists.",
+    openWorkspace: "Open Workspace",
+    openUpload: "Upload Data",
+    askALI: "Ask ALI",
+    ocr: "OCR / Extraction",
+    processing: "Checking data",
+    ready: "Ready"
+  }
+};
+
+function getSPECIALALILanguage() {
+  return (
+    localStorage.getItem(SPECIAL_ALI_LANGUAGE_KEY) ||
+    "id"
+  );
+}
+
+function setSPECIALALILanguage(language) {
+  const nextLanguage =
+    language === "en" ? "en" : "id";
+
+  localStorage.setItem(
+    SPECIAL_ALI_LANGUAGE_KEY,
+    nextLanguage
+  );
+
+  document.documentElement.lang =
+    nextLanguage === "en" ? "en" : "id";
+
+  applySPECIALALITranslations();
+  renderSPECIALALIQuickActions();
+}
+
+function tSPECIALALI(key) {
+  const language =
+    getSPECIALALILanguage();
+
+  return (
+    SPECIAL_ALI_I18N[language]?.[key] ||
+    SPECIAL_ALI_I18N.en[key] ||
+    key
+  );
+}
+
+function applySPECIALALITranslations() {
+  const languageButton =
+    document.querySelector(
+      "#specialAliLanguageToggle"
+    );
+
+  if (languageButton) {
+    languageButton.textContent =
+      getSPECIALALILanguage() === "id"
+        ? "ID / EN"
+        : "EN / ID";
+  }
+
+  const workspaceButtons =
+    document.querySelectorAll(
+      "[data-special-ali-label='workspace']"
+    );
+
+  workspaceButtons.forEach(
+    button => {
+      button.textContent =
+        tSPECIALALI("workspace");
+    }
+  );
+
+  const uploadButtons =
+    document.querySelectorAll(
+      "[data-special-ali-label='upload']"
+    );
+
+  uploadButtons.forEach(
+    button => {
+      button.textContent =
+        tSPECIALALI("uploadData");
+    }
+  );
+}
+
+function toggleSPECIALALILanguage() {
+  const nextLanguage =
+    getSPECIALALILanguage() === "id"
+      ? "en"
+      : "id";
+
+  setSPECIALALILanguage(
+    nextLanguage
+  );
+
+  showToast(
+    nextLanguage === "id"
+      ? "Bahasa Indonesia aktif."
+      : "English language active.",
+    "success"
+  );
+}
+
+function createSPECIALALIButton(
+  label,
+  route,
+  type,
+  icon
+) {
+  const button =
+    document.createElement("button");
+
+  button.type = "button";
+  button.className =
+    type === "primary"
+      ? "btn btn-green"
+      : "btn btn-soft";
+
+  button.dataset.specialAliLabel =
+    route === "workspace"
+      ? "workspace"
+      : "upload";
+
+  button.innerHTML = `
+    <span
+      aria-hidden="true"
+      style="
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        width:16px;
+        height:16px;
+        margin-right:6px;
+        font-size:14px;
+        line-height:1;
+      "
+    >${icon}</span>
+    <span class="special-ali-button-text">
+      ${escapeHTML(label)}
+    </span>
+  `;
+
+  button.addEventListener(
+    "click",
+    async () => {
+      await navigate(route);
+    }
+  );
+
+  return button;
+}
+
+function renderSPECIALALIQuickActions() {
+  const appView =
+    document.querySelector("#appView");
+
+  if (
+    !appView ||
+    appView.classList.contains("hidden")
+  ) {
+    return;
+  }
+
+  let actionBar =
+    document.querySelector(
+      "#specialAliQuickActions"
+    );
+
+  if (!actionBar) {
+    actionBar =
+      document.createElement("div");
+
+    actionBar.id =
+      "specialAliQuickActions";
+
+    actionBar.style.cssText = `
+      display:flex;
+      align-items:center;
+      justify-content:flex-start;
+      flex-wrap:wrap;
+      gap:10px;
+      margin:0 0 24px;
+    `;
+
+    const content =
+      document.querySelector("#content");
+
+    if (content) {
+      content.prepend(actionBar);
+    }
+  }
+
+  actionBar.innerHTML = "";
+
+  const workspaceButton =
+    createSPECIALALIButton(
+      tSPECIALALI("workspace"),
+      "workspace",
+      "soft",
+      "▦"
+    );
+
+  const uploadButton =
+    createSPECIALALIButton(
+      tSPECIALALI("uploadData"),
+      "ingestion",
+      "primary",
+      "↑"
+    );
+
+  actionBar.appendChild(
+    workspaceButton
+  );
+
+  actionBar.appendChild(
+    uploadButton
+  );
+
+  applySPECIALALITranslations();
+}
+
+function renderSPECIALALIWelcome() {
+  if (!state.user) {
+    return;
+  }
+
+  const welcome =
+    tSPECIALALI("welcome");
+
+  typeALI(
+    welcome,
+    "POST_SIGN_IN"
+  );
+
+  const existing =
+    document.querySelector(
+      "#specialAliWelcome"
+    );
+
+  if (existing) {
+    existing.remove();
+  }
+
+  const content =
+    document.querySelector("#content");
+
+  if (!content) {
+    return;
+  }
+
+  const welcomeBox =
+    document.createElement("section");
+
+  welcomeBox.id =
+    "specialAliWelcome";
+
+  welcomeBox.className =
+    "card page-card";
+
+  welcomeBox.style.cssText = `
+    margin-bottom:20px;
+    border-left:4px solid var(--green, #19a463);
+  `;
+
+  welcomeBox.innerHTML = `
+    <div class="eyebrow">
+      ALI
+    </div>
+
+    <div
+      class="card-title"
+      style="margin-top:8px"
+    >
+      ${escapeHTML(welcome)}
+    </div>
+
+    <div
+      class="card-copy"
+      style="margin-top:8px"
+    >
+      ${escapeHTML(
+        getSPECIALALILanguage() === "id"
+          ? "Pilih Workspace untuk membuka dashboard atau Unggah Data untuk memulai ingestion."
+          : "Choose Workspace to open the dashboard or Upload Data to start ingestion."
+      )}
+    </div>
+  `;
+
+  content.prepend(welcomeBox);
+}
+
+function ensureSPECIALALIRecoveryUI() {
+  document.documentElement.lang =
+    getSPECIALALILanguage() === "id"
+      ? "id"
+      : "en";
+
+  renderSPECIALALIQuickActions();
+  renderSPECIALALIWelcome();
+
+  const languageToggle =
+    document.querySelector(
+      "#specialAliLanguageToggle"
+    );
+
+  if (!languageToggle) {
+    const topbarRight =
+      document.querySelector(
+        ".topbar-right"
+      );
+
+    if (topbarRight) {
+      const button =
+        document.createElement("button");
+
+      button.id =
+        "specialAliLanguageToggle";
+
+      button.type = "button";
+      button.className =
+        "btn btn-soft";
+
+      button.style.cssText = `
+        padding:8px 12px;
+        font-size:11px;
+        white-space:nowrap;
+      `;
+
+      button.addEventListener(
+        "click",
+        toggleSPECIALALILanguage
+      );
+
+      topbarRight.prepend(button);
+    }
+  }
+
+  applySPECIALALITranslations();
+}
+
+/* Re-run the recovery UI whenever the app opens */
+const specialAliOriginalShowApp =
+  showApp;
+
+showApp = function() {
+  specialAliOriginalShowApp();
+
+  setTimeout(
+    () => {
+      ensureSPECIALALIRecoveryUI();
+    },
+    0
+  );
+};
+
+/* Re-run after every route render */
+const specialAliOriginalNavigate =
+  navigate;
+
+navigate = async function(route) {
+  const result =
+    await specialAliOriginalNavigate(
+      route
+    );
+
+  setTimeout(
+    () => {
+      renderSPECIALALIQuickActions();
+
+      if (route === "ali") {
+        renderSPECIALALIWelcome();
+      }
+    },
+    0
+  );
+
+  return result;
+};
+
+/* OCR icon protection */
+(function protectSPECIALALIOCRIcon() {
+  const style =
+    document.createElement("style");
+
+  style.id =
+    "specialAliOcrIconProtection";
+
+  style.textContent = `
+    .ocr-icon,
+    [data-route="ocr"] .nav-icon,
+    [data-route="ocr"] svg,
+    [data-route="ocr"] img {
+      width:18px !important;
+      height:18px !important;
+      max-width:18px !important;
+      max-height:18px !important;
+      min-width:18px !important;
+      min-height:18px !important;
+      flex:0 0 18px !important;
+      object-fit:contain !important;
+      display:inline-flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      overflow:hidden !important;
+    }
+
+    [data-route="ocr"] {
+      min-width:0 !important;
+    }
+
+    [data-route="ocr"] .nav-text {
+      min-width:0 !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+    }
+  `;
+
+  document.head.appendChild(style);
+})();
 
 /* ============================================================
    SECURITY / UI BOUNDARY NOTE
