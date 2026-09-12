@@ -3542,96 +3542,99 @@ async function handleFilesSelected(
 }
 
 
-async function processUploadSelection(
-  files
-) {
+async function processUploadSelection(files) {
 
-  renderProcessingPage(
-    files
-  );
-
+  renderProcessingPage(files);
 
   try {
 
-    const result =
-      await apiRequest(
-        "/ingestion/jobs",
-        {
-          method: "POST",
-          body: {
-            workspace_id:
-              state.workspace?.id ||
-              null,
+    const result = await apiRequest(
+      "/ingestion/jobs",
+      {
+        method: "POST",
+        body: {
+          workspace_id:
+            state.workspace?.id || null,
 
-            files:
-              files.map(
-                file => ({
-                  name:
-                    file.name,
-
-                  size:
-                    file.size,
-
-                  type:
-                    file.type,
-
-                  last_modified:
-                    file.lastModified
-                })
-              )
-          }
+          files: files.map(file => ({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            last_modified: file.lastModified
+          }))
         }
-      );
-
+      }
+    );
 
     if (!result) {
-
       throw new Error(
         "No ingestion job returned."
       );
-
     }
 
+    /*
+      1. Upload file ke signed URL
+    */
 
     if (
-      result.upload_urls
+      Array.isArray(result.upload_urls) &&
+      result.upload_urls.length > 0
     ) {
 
-      if (
-  result.execution_id
-) {
-
-  const executionResult =
-    await runExecution(
-      result.execution_id
-    );
-
-  if (
-    executionResult &&
-    executionResult.execution
-  ) {
-
-     updateExecutionUI(
-      executionResult.execution
-   );
-
-     }
+      await uploadFilesToSignedUrls(
+        files,
+        result.upload_urls
+      );
 
     }
 
-  }
-    await monitorExecution(
-      result.execution_id
-   );
+    /*
+      2. Jalankan execution setelah
+         file berhasil di-upload.
+    */
 
-  }
+    if (result.execution_id) {
 
+      const executionResult =
+        await runExecution(
+          result.execution_id
+        );
+
+      if (
+        executionResult &&
+        executionResult.execution
+      ) {
+
+        updateExecutionUI(
+          executionResult.execution
+        );
+
+      }
+
+      /*
+        3. Pantau execution sampai
+           COMPLETED / FAILED / BLOCKED
+      */
+
+      await monitorExecution(
+        result.execution_id
+      );
+
+    }
+
+    /*
+      4. Setelah ingestion berhasil dibuat,
+         refresh state workspace.
+    */
 
     state.workspace = {
       ...(state.workspace || {}),
       has_data: true
     };
 
+    /*
+      5. Tampilkan halaman ingestion.
+    */
 
     await navigate(
       "ingestion"
@@ -3639,7 +3642,10 @@ async function processUploadSelection(
 
   } catch (error) {
 
-    console.error(error);
+    console.error(
+      "SPECIAL ALI ingestion error:",
+      error
+    );
 
     renderProcessingError(
       error
