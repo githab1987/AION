@@ -1249,124 +1249,418 @@
 }
 
 /* ============================================================
-   SPECIAL ALI — ADDITIVE READY EXPERIENCE
-
-   IMPORTANT:
-   - Does not replace existing UI
-   - Does not modify Sign In
-   - Does not modify sidebar structure
-   - Does not modify existing workflow
+   SPECIAL ALI — READY EXPERIENCE
+   ADDITIVE ONLY
 ============================================================ */
 
-.ready-experience {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  min-height: min(680px, calc(100vh - 120px));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 72px 32px 84px;
-  box-sizing: border-box;
-  text-align: center;
-}
+(function () {
 
-.ready-experience-inner {
-  width: min(980px, 100%);
-  margin: 0 auto;
-}
+  const readyMessages = {
 
-.ready-eyebrow {
-  margin: 0 0 22px;
-  font-size: 12px;
-  line-height: 1.4;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  opacity: 0.55;
-}
+    en: [
+      "What should we accomplish today?",
+      "Let’s organize your financial data.",
+      "Let’s investigate your documents.",
+      "Let’s prepare your accounting workflow.",
+      "Let’s review your tax data.",
+      "Let’s turn evidence into a clear result."
+    ],
 
-.ready-title {
-  margin: 0;
-  font-size: clamp(54px, 8vw, 112px);
-  line-height: 0.94;
-  letter-spacing: -0.065em;
-  font-weight: 800;
-  text-transform: uppercase;
-}
+    id: [
+      "Apa yang ingin kita selesaikan hari ini?",
+      "Mari kita rapikan dan pahami data keuangan Anda.",
+      "Mari kita periksa dokumen yang ada.",
+      "Mari kita siapkan alur accounting Anda.",
+      "Mari kita tinjau data perpajakan Anda.",
+      "Mari kita ubah evidence menjadi hasil yang jelas."
+    ]
 
-.ready-message {
-  min-height: 34px;
-  margin: 30px auto 0;
-  max-width: 720px;
-  font-size: clamp(17px, 2vw, 24px);
-  line-height: 1.5;
-  letter-spacing: -0.015em;
-  opacity: 0.68;
-  transition:
-    opacity 420ms ease,
-    transform 420ms ease;
-}
-
-.ready-message.is-changing {
-  opacity: 0;
-  transform: translateY(5px);
-}
-
-.ready-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 46px;
-}
-
-.ready-action-button {
-  appearance: none;
-  border: 0;
-  border-radius: 14px;
-  min-height: 52px;
-  padding: 0 28px;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  font: inherit;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-
-  cursor: pointer;
-
-  background: var(--text-primary, #111111);
-  color: var(--surface, #ffffff);
-
-  transition:
-    transform 160ms ease,
-    opacity 160ms ease,
-    background 160ms ease;
-}
-
-.ready-action-button:hover {
-  transform: translateY(-1px);
-}
-
-.ready-action-button:active {
-  transform: translateY(0);
-}
-
-.ready-action-button:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 3px;
-}
-
-.ready-language-note {
-  margin-top: 32px;
-  font-size: 12px;
-  opacity: 0.42;
-}
+  };
 
 
+  let readyMessageIndex = 0;
+  let readyMessageTimer = null;
+
+
+  function getReadyElement() {
+
+    return document.getElementById(
+      "specialAliReadyExperience"
+    );
+
+  }
+
+
+  function getCurrentLanguage() {
+
+    try {
+
+      if (
+        typeof state !== "undefined" &&
+        state.language
+      ) {
+
+        return state.language === "en"
+          ? "en"
+          : "id";
+
+      }
+
+    } catch (error) {
+
+      /* Existing application state remains authoritative. */
+
+    }
+
+
+    return (
+      localStorage.getItem(
+        "special_ali_language"
+      ) === "en"
+
+        ? "en"
+        : "id"
+    );
+
+  }
+
+
+  function updateReadyMessage() {
+
+    const messageElement =
+      document.getElementById(
+        "specialAliReadyMessage"
+      );
+
+
+    if (!messageElement) {
+
+      return;
+
+    }
+
+
+    const language =
+      getCurrentLanguage();
+
+
+    const messages =
+      readyMessages[language] ||
+      readyMessages.id;
+
+
+    if (!messages.length) {
+
+      return;
+
+    }
+
+
+    messageElement.classList.add(
+      "is-changing"
+    );
+
+
+    window.setTimeout(function () {
+
+      readyMessageIndex =
+        (
+          readyMessageIndex + 1
+        ) % messages.length;
+
+
+      messageElement.textContent =
+        messages[
+          readyMessageIndex
+        ];
+
+
+      messageElement.classList.remove(
+        "is-changing"
+      );
+
+    }, 420);
+
+  }
+
+
+  function startReadyRotation() {
+
+    stopReadyRotation();
+
+
+    readyMessageTimer =
+      window.setInterval(
+        updateReadyMessage,
+        4200
+      );
+
+  }
+
+
+  function stopReadyRotation() {
+
+    if (readyMessageTimer) {
+
+      window.clearInterval(
+        readyMessageTimer
+      );
+
+      readyMessageTimer = null;
+
+    }
+
+  }
+
+
+  function openReadyExperience() {
+
+    const ready =
+      getReadyElement();
+
+
+    if (!ready) {
+
+      return;
+
+    }
+
+
+    ready.hidden = false;
+
+
+    readyMessageIndex = 0;
+
+
+    const messageElement =
+      document.getElementById(
+        "specialAliReadyMessage"
+      );
+
+
+    if (messageElement) {
+
+      const language =
+        getCurrentLanguage();
+
+
+      messageElement.textContent =
+        readyMessages[language][0];
+
+    }
+
+
+    startReadyRotation();
+
+  }
+
+
+  function closeReadyExperience() {
+
+    const ready =
+      getReadyElement();
+
+
+    if (!ready) {
+
+      return;
+
+    }
+
+
+    ready.hidden = true;
+
+
+    stopReadyRotation();
+
+  }
+
+
+  function goToExistingRoute(
+    routeName
+  ) {
+
+    /*
+      IMPORTANT:
+
+      We do not create a second
+      navigation system.
+
+      We reuse the existing
+      SPECIAL ALI router.
+    */
+
+    try {
+
+      if (
+        typeof navigate === "function"
+      ) {
+
+        navigate(routeName);
+
+        return;
+
+      }
+
+    } catch (error) {
+
+      console.warn(
+        "SPECIAL ALI ready navigation:",
+        error
+      );
+
+    }
+
+
+    /*
+      Fallback:
+
+      Use an existing navigation
+      element instead of creating
+      a duplicate route.
+    */
+
+    const selectors = [
+
+      `[data-route="${routeName}"]`,
+
+      `[data-page="${routeName}"]`,
+
+      `[data-view="${routeName}"]`
+
+    ];
+
+
+    for (
+      const selector of selectors
+    ) {
+
+      const target =
+        document.querySelector(
+          selector
+        );
+
+
+      if (target) {
+
+        target.click();
+
+        return;
+
+      }
+
+    }
+
+
+    console.warn(
+      "SPECIAL ALI route not found:",
+      routeName
+    );
+
+  }
+
+
+  function bindReadyActions() {
+
+    const workspaceButton =
+      document.getElementById(
+        "readyWorkspaceButton"
+      );
+
+
+    const ingestionButton =
+      document.getElementById(
+        "readyIngestionButton"
+      );
+
+
+    if (workspaceButton) {
+
+      workspaceButton.addEventListener(
+        "click",
+        function () {
+
+          closeReadyExperience();
+
+          goToExistingRoute(
+            "work"
+          );
+
+        }
+      );
+
+    }
+
+
+    if (ingestionButton) {
+
+      ingestionButton.addEventListener(
+        "click",
+        function () {
+
+          closeReadyExperience();
+
+          goToExistingRoute(
+            "ingestion"
+          );
+
+        }
+      );
+
+    }
+
+  }
+
+
+  function initReadyExperience() {
+
+    bindReadyActions();
+
+
+    /*
+      READY is additive.
+
+      It does not control authentication.
+      It does not control the sidebar.
+      It does not replace navigation.
+
+      Existing application functions
+      remain authoritative.
+    */
+
+  }
+
+
+  window.SPECIAL_ALI_READY = {
+
+    open:
+      openReadyExperience,
+
+    close:
+      closeReadyExperience,
+
+    init:
+      initReadyExperience
+
+  };
+
+
+  if (
+    document.readyState === "loading"
+  ) {
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      initReadyExperience
+    );
+
+  } else {
+
+    initReadyExperience();
+
+  }
+
+})();
 /* ============================================================
    SPECIAL ALI — READY EXPERIENCE SAFETY
 
