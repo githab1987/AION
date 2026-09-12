@@ -50,31 +50,148 @@ const CONFIG = {
 
 let supabaseClient = null;
 
+/* ============================================================
+   SUPABASE INITIALIZATION
+   SPECIAL ALI — SAFE BOOT VERSION
+============================================================ */
+
 function initSupabase() {
 
+  console.log(
+    "[SPECIAL ALI BOOT] initSupabase mulai"
+  );
+
+
+  /*
+    Pastikan library Supabase benar-benar tersedia.
+  */
+
   if (
-    !window.supabase ||
-    !CONFIG.SUPABASE_URL ||
-    CONFIG.SUPABASE_URL === "YOUR_SUPABASE_URL" ||
-    !CONFIG.SUPABASE_ANON_KEY ||
-    CONFIG.SUPABASE_ANON_KEY === "YOUR_SUPABASE_ANON_KEY"
+    !window.supabase
   ) {
+
+    console.error(
+      "[SPECIAL ALI BOOT] Supabase library tidak tersedia."
+    );
+
+    state.backendConfigured =
+      false;
+
     return false;
   }
 
-  supabaseClient = window.supabase.createClient(
-    CONFIG.SUPABASE_URL,
-    CONFIG.SUPABASE_ANON_KEY,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
-    }
+
+  /*
+    Pastikan konfigurasi tidak kosong.
+  */
+
+  if (
+    !CONFIG.SUPABASE_URL ||
+    CONFIG.SUPABASE_URL === "YOUR_SUPABASE_URL"
+  ) {
+
+    console.error(
+      "[SPECIAL ALI BOOT] SUPABASE_URL tidak valid."
+    );
+
+    state.backendConfigured =
+      false;
+
+    return false;
+  }
+
+
+  if (
+    !CONFIG.SUPABASE_ANON_KEY ||
+    CONFIG.SUPABASE_ANON_KEY === "YOUR_SUPABASE_ANON_KEY"
+  ) {
+
+    console.error(
+      "[SPECIAL ALI BOOT] SUPABASE_ANON_KEY tidak valid."
+    );
+
+    state.backendConfigured =
+      false;
+
+    return false;
+  }
+
+
+  /*
+    Buat client Supabase satu kali saja.
+  */
+
+  try {
+
+    supabaseClient =
+      window.supabase.createClient(
+        CONFIG.SUPABASE_URL,
+        CONFIG.SUPABASE_ANON_KEY,
+        {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            flowType: "pkce"
+          }
+        }
+      );
+
+  } catch (error) {
+
+    console.error(
+      "[SPECIAL ALI BOOT] Gagal membuat Supabase client:",
+      error
+    );
+
+    supabaseClient =
+      null;
+
+    state.backendConfigured =
+      false;
+
+    return false;
+  }
+
+
+  /*
+    Verifikasi client benar-benar terbentuk.
+  */
+
+  if (
+    !supabaseClient ||
+    !supabaseClient.auth
+  ) {
+
+    console.error(
+      "[SPECIAL ALI BOOT] Supabase auth tidak tersedia."
+    );
+
+    supabaseClient =
+      null;
+
+    state.backendConfigured =
+      false;
+
+    return false;
+  }
+
+
+  /*
+    Tandai backend aktif.
+  */
+
+  state.backendConfigured =
+    true;
+
+
+  console.log(
+    "[SPECIAL ALI BOOT] Supabase berhasil diinisialisasi."
   );
 
+
   return true;
+
 }
 
 
@@ -917,35 +1034,202 @@ const $$ = (selector) =>
 
 
 /* ============================================================
-   BOOT
+   SPECIAL ALI — APPLICATION BOOT
+   SAFE STARTUP VERSION
 ============================================================ */
 
 document.addEventListener(
   "DOMContentLoaded",
   async () => {
 
-    state.backendConfigured =
+    console.log(
+      "[SPECIAL ALI BOOT] DOMContentLoaded"
+    );
+
+
+    /*
+      Pastikan elemen utama tersedia.
+    */
+
+    const landingView =
+      document.querySelector("#landingView");
+
+    const appView =
+      document.querySelector("#appView");
+
+    const learnView =
+      document.querySelector("#learnView");
+
+
+    console.log(
+      "[SPECIAL ALI BOOT] Elemen UI:",
+      {
+        landingView: !!landingView,
+        appView: !!appView,
+        learnView: !!learnView
+      }
+    );
+
+
+    /*
+      Inisialisasi Supabase.
+    */
+
+    const supabaseReady =
       initSupabase();
 
-    bindEvents();
-    applySidebarState();
 
-    updateLanguageButtons();
-    applyNavigationLanguage();
+    console.log(
+      "[SPECIAL ALI BOOT] Supabase ready:",
+      supabaseReady
+    );
 
-    if (!state.backendConfigured) {
+
+    /*
+      Pasang event handler lebih dulu.
+    */
+
+    try {
+
+      bindEvents();
+
+      console.log(
+        "[SPECIAL ALI BOOT] bindEvents berhasil."
+      );
+
+    } catch (error) {
+
+      console.error(
+        "[SPECIAL ALI BOOT] bindEvents gagal:",
+        error
+      );
+
+    }
+
+
+    /*
+      Terapkan tampilan sidebar.
+    */
+
+    try {
+
+      applySidebarState();
+
+    } catch (error) {
+
+      console.warn(
+        "[SPECIAL ALI BOOT] applySidebarState gagal:",
+        error
+      );
+
+    }
+
+
+    /*
+      Terapkan bahasa UI.
+    */
+
+    try {
+
+      updateLanguageButtons();
+      applyNavigationLanguage();
+
+    } catch (error) {
+
+      console.warn(
+        "[SPECIAL ALI BOOT] language setup gagal:",
+        error
+      );
+
+    }
+
+
+    /*
+      Jika Supabase belum siap,
+      jangan langsung menghapus seluruh state UI.
+
+      Tampilkan landing hanya jika memang
+      tidak ada client Supabase sama sekali.
+    */
+
+    if (
+      !supabaseReady ||
+      !supabaseClient
+    ) {
+
+      console.error(
+        "[SPECIAL ALI BOOT] Supabase tidak siap."
+      );
+
 
       setConnection(
         false,
-        "Backend not configured"
+        "Supabase unavailable"
       );
 
+
+      /*
+        Jangan menjalankan restoreSession
+        jika client tidak tersedia.
+      */
+
       showLanding();
+
 
       return;
     }
 
-    await restoreSession();
+
+    /*
+      Supabase siap.
+      Lanjutkan pemulihan session.
+    */
+
+    try {
+
+      await restoreSession();
+
+
+      console.log(
+        "[SPECIAL ALI BOOT] restoreSession selesai."
+      );
+
+    } catch (error) {
+
+      console.error(
+        "[SPECIAL ALI BOOT] restoreSession gagal:",
+        error
+      );
+
+
+      /*
+        Jangan memaksa kembali ke homepage
+        akibat error lanjutan.
+      */
+
+      setConnection(
+        false,
+        "Authentication unavailable"
+      );
+
+
+      /*
+        Jika belum ada tampilan aplikasi,
+        tampilkan landing sebagai fallback terakhir.
+      */
+
+      if (
+        appView &&
+        appView.classList.contains("hidden") &&
+        landingView &&
+        landingView.classList.contains("hidden")
+      ) {
+
+        showLanding();
+
+      }
+
+    }
 
   }
 );
