@@ -12,6 +12,10 @@ import {
 } from "../../core/data-center/access.js";
 
 import {
+  createExecution
+} from "../../core/execution/engine.js";
+
+import {
   supabaseAdmin
 } from "../../infrastructure/supabase/client.js";
 
@@ -20,10 +24,8 @@ import {
   HttpError
 } from "../../shared/errors/http.js";
 
-
 type JsonRecord =
   Record<string, unknown>;
-
 
 const STAGES = [
   "DATA_RECEIVED",
@@ -35,7 +37,6 @@ const STAGES = [
   "DATA_READY"
 ] as const;
 
-
 function json(
   res: VercelResponse,
   status: number,
@@ -45,7 +46,6 @@ function json(
     .status(status)
     .json(payload);
 }
-
 
 function normalizeString(
   value: unknown
@@ -62,7 +62,6 @@ function normalizeString(
     ? normalized
     : null;
 }
-
 
 function getFileExtension(
   name: string
@@ -82,7 +81,6 @@ function getFileExtension(
     .slice(index + 1)
     .toLowerCase();
 }
-
 
 function detectObjectType(
   mimeType: string | null
@@ -109,7 +107,6 @@ function detectObjectType(
 
   return "FILE";
 }
-
 
 function getBody(
   req: VercelRequest
@@ -153,7 +150,6 @@ function getBody(
   return {};
 }
 
-
 function isUuid(
   value: string
 ): boolean {
@@ -162,10 +158,19 @@ function isUuid(
     .test(value);
 }
 
+function safeStorageName(
+  value: string
+): string {
+
+  return value
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .replace(/_+/g, "_")
+    .slice(0, 180);
+}
 
 /* ============================================================
    POST
-   CREATE INGESTION JOB
+   CREATE INGESTION + EXECUTION + SIGNED UPLOAD
 ============================================================ */
 
 async function handlePost(
@@ -177,7 +182,6 @@ async function handlePost(
     authorization
   } = await authorizeRequest(req);
 
-
   const {
     tenantId,
     workspaceId,
@@ -185,10 +189,8 @@ async function handlePost(
     requestId
   } = authorization.identity;
 
-
   const body =
     getBody(req);
-
 
   const sourceName =
     normalizeString(
@@ -198,9 +200,7 @@ async function handlePost(
       body.name
     );
 
-
   if (!sourceName) {
-
     throw new HttpError(
       400,
       "SOURCE_NAME_REQUIRED",
@@ -208,12 +208,10 @@ async function handlePost(
     );
   }
 
-
   const mimeType =
     normalizeString(
       body.mime_type
     );
-
 
   const fileExtension =
     normalizeString(
@@ -222,7 +220,6 @@ async function handlePost(
     getFileExtension(
       sourceName
     );
-
 
   const sizeBytes =
     typeof body.size_bytes === "number" &&
@@ -235,19 +232,16 @@ async function handlePost(
         )
       : null;
 
-
   const contentHash =
     normalizeString(
       body.content_hash
     );
-
 
   const metadata: JsonRecord =
     body.metadata &&
     typeof body.metadata === "object"
       ? body.metadata as JsonRecord
       : {};
-
 
   const objectType =
     normalizeString(
@@ -257,12 +251,9 @@ async function handlePost(
       mimeType
     );
 
-
-  /*
-   * ----------------------------------------------------------
-   * 1. CREATE DATA OBJECT
-   * ----------------------------------------------------------
-   */
+  /* ----------------------------------------------------------
+     1. DATA OBJECT
+  ---------------------------------------------------------- */
 
   const {
     data: dataObject,
@@ -321,7 +312,7 @@ async function handlePost(
 
         provenance: {
           source:
-            "SPECIAL_ALI",
+            "SPECIAL ALI",
 
           ingestion:
             true,
@@ -336,31 +327,8 @@ async function handlePost(
         registered_by:
           userId
       })
-      .select(`
-        id,
-        tenant_id,
-        workspace_id,
-        source_id,
-        object_type,
-        status,
-        name,
-        description,
-        mime_type,
-        file_extension,
-        size_bytes,
-        content_hash,
-        content_hash_algorithm,
-        version,
-        parent_object_id,
-        metadata,
-        provenance,
-        classification,
-        registered_by,
-        created_at,
-        updated_at
-      `)
+      .select("*")
       .single();
-
 
   if (dataObjectError) {
     throw new HttpError(
@@ -370,15 +338,9 @@ async function handlePost(
     );
   }
 
-
-  /*
-   * ----------------------------------------------------------
-   * 2. AUTHORIZE DATA OBJECT WRITE
-   * ----------------------------------------------------------
-   *
-   * Data object authorization is evaluated
-   * against the real authorization architecture.
-   */
+  /* ----------------------------------------------------------
+     2. DATA ACCESS AUTHORIZATION
+  ---------------------------------------------------------- */
 
   try {
 
@@ -405,12 +367,9 @@ async function handlePost(
     throw error;
   }
 
-
-  /*
-   * ----------------------------------------------------------
-   * 3. CREATE INGESTION JOB
-   * ----------------------------------------------------------
-   */
+  /* ----------------------------------------------------------
+     3. INGESTION JOB
+  ---------------------------------------------------------- */
 
   const {
     data: ingestionJob,
@@ -501,7 +460,6 @@ async function handlePost(
       .select("*")
       .single();
 
-
   if (ingestionError) {
 
     await supabaseAdmin
@@ -523,12 +481,115 @@ async function handlePost(
     );
   }
 
+  /* ----------------------------------------------------------
+     4. EXECUTION
+  ---------------------------------------------------------- */
 
-  /*
-   * ----------------------------------------------------------
-   * 4. AUDIT EVENT
-   * ----------------------------------------------------------
-   */
+  let execution;
+
+  try {
+
+    execution =
+      await createExecution({
+        tenantId,
+        workspaceId,
+        ingestionJobId:
+          ingestionJob.id,
+        dataObjectId:
+          dataObject.id
+      });
+
+  } catch (error) {
+
+    await supabaseAdmin
+      .from("ingestion_jobs")
+      .delete()
+      .eq(
+        "id",
+        ingestionJob.id
+      )
+      .eq(
+        "workspace_id",
+        workspaceId
+      );
+
+    await supabaseAdmin
+      .from("data_objects")
+      .delete()
+      .eq(
+        "id",
+        dataObject.id
+      )
+      .eq(
+        "workspace_id",
+        workspaceId
+      );
+
+    throw new HttpError(
+      500,
+      "EXECUTION_CREATE_FAILED",
+      "Unable to create execution"
+    );
+  }
+
+  /* ----------------------------------------------------------
+     5. SIGNED STORAGE UPLOAD
+  ---------------------------------------------------------- */
+
+  const storagePath =
+    [
+      workspaceId,
+      dataObject.id,
+      safeStorageName(sourceName)
+    ].join("/");
+
+  const {
+    data: signedUpload,
+    error: signedUploadError
+  } =
+    await supabaseAdmin
+      .storage
+      .from("evidence")
+      .createSignedUploadUrl(
+        storagePath
+      );
+
+  if (signedUploadError) {
+
+    await supabaseAdmin
+      .from("execution_runs")
+      .delete()
+      .eq(
+        "id",
+        execution.id
+      );
+
+    await supabaseAdmin
+      .from("ingestion_jobs")
+      .delete()
+      .eq(
+        "id",
+        ingestionJob.id
+      );
+
+    await supabaseAdmin
+      .from("data_objects")
+      .delete()
+      .eq(
+        "id",
+        dataObject.id
+      );
+
+    throw new HttpError(
+      500,
+      "SIGNED_UPLOAD_CREATE_FAILED",
+      "Unable to create signed upload URL"
+    );
+  }
+
+  /* ----------------------------------------------------------
+     6. AUDIT
+  ---------------------------------------------------------- */
 
   const {
     error: auditError
@@ -567,26 +628,21 @@ async function handlePost(
           data_object_id:
             dataObject.id,
 
+          execution_id:
+            execution.id,
+
           source_name:
             sourceName,
+
+          storage_path:
+            storagePath,
 
           current_stage:
             "DATA_RECEIVED"
         }
       });
 
-
   if (auditError) {
-
-    /*
-     * The ingestion job itself already exists.
-     *
-     * We do not delete valid business data merely
-     * because audit registration failed.
-     *
-     * Return an explicit server error so the
-     * failure is visible and accountable.
-     */
 
     throw new HttpError(
       500,
@@ -595,12 +651,9 @@ async function handlePost(
     );
   }
 
-
-  /*
-   * ----------------------------------------------------------
-   * 5. AUTHORITATIVE RESPONSE
-   * ----------------------------------------------------------
-   */
+  /* ----------------------------------------------------------
+     7. AUTHORITATIVE RESPONSE
+  ---------------------------------------------------------- */
 
   return json(
     res,
@@ -615,12 +668,31 @@ async function handlePost(
       component:
         "INGESTION",
 
+      execution_id:
+        execution.id,
+
+      upload_urls: [
+        {
+          url:
+            signedUpload.signedUrl,
+
+          path:
+            storagePath,
+
+          token:
+            signedUpload.token
+        }
+      ],
+
       ingestion: {
         id:
           ingestionJob.id,
 
         data_object_id:
           dataObject.id,
+
+        execution_id:
+          execution.id,
 
         status:
           ingestionJob.status,
@@ -644,10 +716,8 @@ async function handlePost(
   );
 }
 
-
 /* ============================================================
    GET
-   LIST / SINGLE INGESTION JOB
 ============================================================ */
 
 async function handleGet(
@@ -659,34 +729,23 @@ async function handleGet(
     authorization
   } = await authorizeRequest(req);
 
-
   const workspaceId =
     authorization.identity.workspaceId;
 
-
   const rawId =
     req.query.id;
-
-
-  /*
-   * ----------------------------------------------------------
-   * SINGLE JOB
-   * ----------------------------------------------------------
-   */
 
   if (
     typeof rawId === "string"
   ) {
 
     if (!isUuid(rawId)) {
-
       throw new HttpError(
         400,
         "INVALID_INGESTION_JOB_ID",
         "Invalid ingestion job id"
       );
     }
-
 
     const {
       data,
@@ -722,7 +781,6 @@ async function handleGet(
         )
         .maybeSingle();
 
-
     if (error) {
       throw new HttpError(
         500,
@@ -731,16 +789,13 @@ async function handleGet(
       );
     }
 
-
     if (!data) {
-
       throw new HttpError(
         404,
         "INGESTION_JOB_NOT_FOUND",
         "Ingestion job was not found"
       );
     }
-
 
     return json(
       res,
@@ -761,34 +816,21 @@ async function handleGet(
     );
   }
 
-
-  /*
-   * ----------------------------------------------------------
-   * JOB LIST
-   * ----------------------------------------------------------
-   */
-
   const rawLimit =
     typeof req.query.limit === "string"
-      ? Number(
-          req.query.limit
-        )
+      ? Number(req.query.limit)
       : 25;
-
 
   const limit =
     Number.isFinite(rawLimit)
       ? Math.min(
           Math.max(
-            Math.floor(
-              rawLimit
-            ),
+            Math.floor(rawLimit),
             1
           ),
           100
         )
       : 25;
-
 
   const {
     data,
@@ -827,16 +869,13 @@ async function handleGet(
         limit
       );
 
-
   if (error) {
-
     throw new HttpError(
       500,
       "INGESTION_JOB_LIST_FAILED",
       "Unable to query ingestion jobs"
     );
   }
-
 
   return json(
     res,
@@ -859,7 +898,6 @@ async function handleGet(
     }
   );
 }
-
 
 /* ============================================================
    HANDLER
@@ -891,7 +929,6 @@ export default async function handler(
       });
   }
 
-
   try {
 
     if (
@@ -904,7 +941,6 @@ export default async function handler(
       );
     }
 
-
     return await handleGet(
       req,
       res
@@ -912,17 +948,8 @@ export default async function handler(
 
   } catch (error) {
 
-    console.error(
-      "SPECIAL ALI ingestion error:",
-      error
-    );
-
-
     const response =
-      errorResponse(
-        error
-      );
-
+      errorResponse(error);
 
     return res
       .status(
