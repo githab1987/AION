@@ -1241,12 +1241,34 @@ async function applyAuthenticatedSession(
 
   updateUserIdentity();
 
+  /*
+    Authentication is complete.
+
+    Do NOT navigate directly to Command Center.
+    The READY experience is the first screen
+    after successful authentication.
+  */
+
   showApp();
 
-  await navigate("ali");
-  
-}
+  if (
+    window.SPECIAL_ALI_READY &&
+    typeof window.SPECIAL_ALI_READY.open === "function"
+  ) {
 
+    window.SPECIAL_ALI_READY.open();
+
+    return;
+  }
+
+  /*
+    Safe fallback only if READY is unavailable.
+    Existing application remains usable.
+  */
+
+  await navigate("ali");
+
+}
 /* ============================================================
    ADDITIVE READY EXPERIENCE
 ============================================================ */
