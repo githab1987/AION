@@ -1195,6 +1195,59 @@
         padding-right: 0;
       }
     }
+
+  /* ============================================================
+   SPECIAL ALI — LANGUAGE / WELCOME UI
+   Stable integrated layer
+============================================================ */
+
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  background: #f5f6f7;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.language-switcher button {
+  border: 0;
+  background: transparent;
+  color: #737983;
+  border-radius: 999px;
+  padding: 6px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+
+.language-switcher button.active {
+  background: white;
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgba(17,24,39,.08);
+}
+
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 20px;
+}
+
+.workspace-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+@media (max-width: 780px) {
+  .language-switcher {
+    display: none;
+  }
+}
+    
   </style>
 </head>
 
@@ -1876,6 +1929,23 @@
         </div>
 
         <div class="topbar-right">
+
+          <div id="languageSelector"
+            class="language-switcher"
+            aria-label="Language">
+          <button
+               id="languageID"
+               type="button"
+              onclick="setLanguage('id')">
+        ID
+         </button>
+
+         <button id="languageEN"
+           type="button"
+           onclick="setLanguage('en')">
+        EN
+        </button>
+          </div>
 
           <div id="connection" class="connection">
             <span class="connection-dot"></span>
