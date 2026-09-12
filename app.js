@@ -3022,22 +3022,26 @@ async function processUploadSelection(
     ) {
 
       await uploadFilesToSignedUrls(
-        files,
-        result.upload_urls
-      );
+  files,
+  result.upload_urls
+);
 
-    }
+if (result.execution_id) {
 
+  await runExecution(
+    result.execution_id
+  );
 
-    if (
+     monitorExecution(
       result.execution_id
-    ) {
+   );
 
-      await monitorExecution(
-        result.execution_id
-      );
+  }
+    await monitorExecution(
+      result.execution_id
+   );
 
-    }
+  }
 
 
     state.workspace = {
