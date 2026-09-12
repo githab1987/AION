@@ -804,16 +804,20 @@ async function applyAuthenticatedSession(
 
   }
 
-  updateUserIdentity();
+    updateUserIdentity();
 
-  showApp();
+       showApp();
 
-  await navigate(
-    "ali"
-  );
+       await navigate("ali");
 
-}
-
+    setTimeout(
+  () => {
+    ensureSPECIALALIRecoveryUI();
+     
+     renderSPECIALALIWelcome();
+  },
+  0
+);
 
 /* ============================================================
    AUTH UI
