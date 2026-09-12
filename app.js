@@ -972,7 +972,6 @@ function bindEvents() {
     handleResize
   );
 
-}
 
 /* ============================================================
    AUTH SESSION
@@ -983,27 +982,40 @@ async function restoreSession() {
   try {
 
     /*
-      Authentication events must NOT control
-      application navigation repeatedly.
+      SPECIAL ALI AUTH BOOT
 
-      Only:
-      - initial restored session
-      - SIGNED_IN
-      - SIGNED_OUT
-
-      are allowed to affect application state.
-
-      TOKEN_REFRESHED only updates the session.
+      Aturan:
+      1. TOKEN_REFRESHED tidak boleh mengubah halaman.
+      2. INITIAL_SESSION tidak boleh mengubah halaman.
+      3. SIGNED_OUT boleh kembali ke landing.
+      4. SIGNED_IN harus membuka aplikasi.
+      5. getSession() menjadi sumber utama untuk
+         memulihkan session saat reload.
+      6. Error sementara pada getSession() TIDAK boleh
+         langsung membuang user ke homepage.
     */
 
     let initialSessionApplied = false;
+    let bootCompleted = false;
+
+
+    /* --------------------------------------------------------
+       AUTH STATE LISTENER
+    -------------------------------------------------------- */
 
     supabaseClient.auth.onAuthStateChange(
       async (event, session) => {
 
-        /*
-          PASSWORD RECOVERY
-        */
+        console.log(
+          "[SPECIAL ALI AUTH]",
+          event,
+          session ? "SESSION" : "NO SESSION"
+        );
+
+
+        /* ----------------------------------------------------
+           PASSWORD RECOVERY
+        ---------------------------------------------------- */
 
         if (
           event === "PASSWORD_RECOVERY"
@@ -1017,9 +1029,9 @@ async function restoreSession() {
         }
 
 
-        /*
-          Recovery mode owns the UI.
-        */
+        /* ----------------------------------------------------
+           RECOVERY MODE OWNS UI
+        ---------------------------------------------------- */
 
         if (
           state.recoveryMode
@@ -1029,14 +1041,13 @@ async function restoreSession() {
         }
 
 
-        /*
-          TOKEN REFRESH
-          
-          IMPORTANT:
-          Never navigate.
-          Never open READY.
-          Never call applyAuthenticatedSession().
-        */
+        /* ----------------------------------------------------
+           TOKEN REFRESHED
+
+           NEVER NAVIGATE.
+           NEVER SHOW LANDING.
+           NEVER OPEN READY.
+        ---------------------------------------------------- */
 
         if (
           event === "TOKEN_REFRESHED"
@@ -1061,14 +1072,12 @@ async function restoreSession() {
         }
 
 
-        /*
-          INITIAL_SESSION
+        /* ----------------------------------------------------
+           INITIAL SESSION
 
-          Do NOT navigate here.
-
-          getSession() below is the single
-          owner of initial session restoration.
-        */
+           getSession() tetap menjadi pemilik
+           pemulihan session awal.
+        ---------------------------------------------------- */
 
         if (
           event === "INITIAL_SESSION"
@@ -1078,23 +1087,27 @@ async function restoreSession() {
         }
 
 
-        /*
-          SIGNED_OUT
+        /* ----------------------------------------------------
+           SIGNED OUT
 
-          This is the only normal auth event
-          allowed to return the user to landing.
-        */
+           Ini satu-satunya event normal yang
+           boleh mengembalikan user ke landing.
+        ---------------------------------------------------- */
 
         if (
           event === "SIGNED_OUT"
         ) {
+
+          initialSessionApplied =
+            false;
 
           state.session = null;
           state.user = null;
           state.profile = null;
           state.workspace = null;
 
-          state.route = "ali";
+          state.route =
+            "ali";
 
           showLanding();
 
@@ -1102,18 +1115,28 @@ async function restoreSession() {
         }
 
 
-        /*
-          SIGNED_IN
+        /* ----------------------------------------------------
+           SIGNED IN
 
-          A real new login.
+           Login berhasil.
 
-          Protect against duplicate SIGNED_IN
-          processing during initial restoration.
-        */
+           Jangan biarkan boot process memblokir
+           event SIGNED_IN.
+        ---------------------------------------------------- */
 
         if (
           event === "SIGNED_IN"
         ) {
+
+          if (!session) {
+
+            console.warn(
+              "[SPECIAL ALI AUTH] SIGNED_IN tanpa session."
+            );
+
+            return;
+          }
+
 
           if (
             initialSessionApplied
@@ -1122,16 +1145,45 @@ async function restoreSession() {
             return;
           }
 
-          if (!session) {
-            return;
-          }
 
           initialSessionApplied =
             true;
 
-          await applyAuthenticatedSession(
-            session
-          );
+
+          try {
+
+            await applyAuthenticatedSession(
+              session
+            );
+
+          } catch (error) {
+
+            console.error(
+              "[SPECIAL ALI AUTH] applyAuthenticatedSession gagal:",
+              error
+            );
+
+            /*
+              Jangan paksa kembali ke homepage
+              hanya karena proses lanjutan gagal.
+
+              Session tetap valid.
+            */
+
+            state.session =
+              session;
+
+            state.user =
+              session.user;
+
+            setConnection(
+              true,
+              "Connected"
+            );
+
+            showApp();
+
+          }
 
           return;
         }
@@ -1140,29 +1192,13 @@ async function restoreSession() {
     );
 
 
-    /*
-      Recovery URL detection.
-    */
+    /* --------------------------------------------------------
+       PASSWORD RECOVERY URL
+    -------------------------------------------------------- */
 
     const recoveryFromURL =
       isRecoveryURL();
 
-
-    const {
-      data,
-      error
-    } =
-      await supabaseClient.auth.getSession();
-
-
-    if (error) {
-      throw error;
-    }
-
-
-    /*
-      Recovery URL has priority.
-    */
 
     if (
       recoveryFromURL
@@ -1173,65 +1209,212 @@ async function restoreSession() {
 
       showPasswordRecovery();
 
+      bootCompleted =
+        true;
+
       return;
     }
 
 
-    /*
-      Existing authenticated session.
+    /* --------------------------------------------------------
+       RESTORE EXISTING SESSION
+    -------------------------------------------------------- */
 
-      This is the ONLY place responsible
-      for restoring the application session
-      during page boot.
-    */
+    let sessionResult;
+
+
+    try {
+
+      sessionResult =
+        await supabaseClient.auth.getSession();
+
+    } catch (error) {
+
+      console.error(
+        "[SPECIAL ALI AUTH] getSession exception:",
+        error
+      );
+
+      /*
+        Jangan langsung showLanding().
+
+        Supabase session dapat mengalami
+        kegagalan sementara ketika boot.
+
+        Kita biarkan auth listener menentukan
+        keadaan autentikasi.
+      */
+
+      setConnection(
+        false,
+        "Session check unavailable"
+      );
+
+      bootCompleted =
+        true;
+
+      return;
+    }
+
+
+    const {
+      data,
+      error
+    } =
+      sessionResult;
+
+
+    /* --------------------------------------------------------
+       GET SESSION ERROR
+    -------------------------------------------------------- */
+
+    if (error) {
+
+      console.error(
+        "[SPECIAL ALI AUTH] getSession error:",
+        error
+      );
+
+      setConnection(
+        false,
+        "Session check unavailable"
+      );
+
+      bootCompleted =
+        true;
+
+      return;
+    }
+
+
+    /* --------------------------------------------------------
+       RECOVERY URL HAS PRIORITY
+    -------------------------------------------------------- */
+
+    if (
+      recoveryFromURL
+    ) {
+
+      state.recoveryMode =
+        true;
+
+      showPasswordRecovery();
+
+      bootCompleted =
+        true;
+
+      return;
+    }
+
+
+    /* --------------------------------------------------------
+       EXISTING SESSION FOUND
+    -------------------------------------------------------- */
 
     if (
       data?.session
     ) {
 
-      initialSessionApplied =
-        true;
+      if (
+        !initialSessionApplied
+      ) {
 
-      await applyAuthenticatedSession(
-        data.session
-      );
+        initialSessionApplied =
+          true;
+
+        try {
+
+          await applyAuthenticatedSession(
+            data.session
+          );
+
+        } catch (error) {
+
+          console.error(
+            "[SPECIAL ALI AUTH] Initial session apply gagal:",
+            error
+          );
+
+          /*
+            Session sudah terbukti ada.
+            Jangan membuang user ke homepage.
+          */
+
+          state.session =
+            data.session;
+
+          state.user =
+            data.session.user;
+
+          setConnection(
+            true,
+            "Connected"
+          );
+
+          showApp();
+
+        }
+
+      }
+
+      bootCompleted =
+        true;
 
       return;
     }
 
 
-    /*
-      No session during initial boot.
-    */
+    /* --------------------------------------------------------
+       NO EXISTING SESSION
+       
+       HANYA DI SINI landing memang benar.
+       
+       Ini berarti user benar-benar belum login
+       ketika aplikasi pertama kali dibuka.
+    -------------------------------------------------------- */
 
-    state.session = null;
-    state.user = null;
-    state.profile = null;
-    state.workspace = null;
+    if (
+      !data?.session &&
+      !bootCompleted
+    ) {
 
-    showLanding();
+      state.session = null;
+      state.user = null;
+      state.profile = null;
+      state.workspace = null;
+
+      showLanding();
+
+      bootCompleted =
+        true;
+
+      return;
+    }
 
 
   } catch (error) {
 
-    console.error(error);
+    console.error(
+      "[SPECIAL ALI AUTH] restoreSession fatal error:",
+      error
+    );
+
+    /*
+      Jangan menghapus state/session dan jangan
+      memaksa homepage hanya karena error boot.
+
+      Landing hanya boleh muncul ketika memang
+      tidak ada session.
+    */
 
     setConnection(
       false,
-      "Session unavailable"
+      "Authentication unavailable"
     );
-
-    state.session = null;
-    state.user = null;
-    state.profile = null;
-    state.workspace = null;
-
-    showLanding();
 
   }
 
 }
-
 
 /* ============================================================
    DETECT PASSWORD RECOVERY URL
