@@ -974,7 +974,6 @@ function bindEvents() {
 
 }
 
-
 /* ============================================================
    AUTH SESSION
 ============================================================ */
@@ -984,20 +983,26 @@ async function restoreSession() {
   try {
 
     /*
-      Register listener BEFORE getSession().
+      Authentication events must NOT control
+      application navigation repeatedly.
 
-      This is important because Supabase can emit
-      PASSWORD_RECOVERY while processing the recovery link.
+      Only:
+      - initial restored session
+      - SIGNED_IN
+      - SIGNED_OUT
+
+      are allowed to affect application state.
+
+      TOKEN_REFRESHED only updates the session.
     */
+
+    let initialSessionApplied = false;
 
     supabaseClient.auth.onAuthStateChange(
       async (event, session) => {
 
         /*
-          PASSWORD_RECOVERY must NEVER immediately open
-          the normal application dashboard.
-
-          It opens the existing auth modal in recovery mode.
+          PASSWORD RECOVERY
         */
 
         if (
@@ -1013,9 +1018,7 @@ async function restoreSession() {
 
 
         /*
-          While the user is changing the password,
-          do not let SIGNED_IN or TOKEN_REFRESHED
-          open the application automatically.
+          Recovery mode owns the UI.
         */
 
         if (
@@ -1026,21 +1029,111 @@ async function restoreSession() {
         }
 
 
-        if (session) {
+        /*
+          TOKEN REFRESH
+          
+          IMPORTANT:
+          Never navigate.
+          Never open READY.
+          Never call applyAuthenticatedSession().
+        */
 
-          await applyAuthenticatedSession(
-            session
-          );
+        if (
+          event === "TOKEN_REFRESHED"
+        ) {
 
-        } else {
+          if (session) {
+
+            state.session =
+              session;
+
+            state.user =
+              session.user;
+
+            setConnection(
+              true,
+              "Connected"
+            );
+
+          }
+
+          return;
+        }
+
+
+        /*
+          INITIAL_SESSION
+
+          Do NOT navigate here.
+
+          getSession() below is the single
+          owner of initial session restoration.
+        */
+
+        if (
+          event === "INITIAL_SESSION"
+        ) {
+
+          return;
+        }
+
+
+        /*
+          SIGNED_OUT
+
+          This is the only normal auth event
+          allowed to return the user to landing.
+        */
+
+        if (
+          event === "SIGNED_OUT"
+        ) {
 
           state.session = null;
           state.user = null;
           state.profile = null;
           state.workspace = null;
 
+          state.route = "ali";
+
           showLanding();
 
+          return;
+        }
+
+
+        /*
+          SIGNED_IN
+
+          A real new login.
+
+          Protect against duplicate SIGNED_IN
+          processing during initial restoration.
+        */
+
+        if (
+          event === "SIGNED_IN"
+        ) {
+
+          if (
+            initialSessionApplied
+          ) {
+
+            return;
+          }
+
+          if (!session) {
+            return;
+          }
+
+          initialSessionApplied =
+            true;
+
+          await applyAuthenticatedSession(
+            session
+          );
+
+          return;
         }
 
       }
@@ -1048,10 +1141,7 @@ async function restoreSession() {
 
 
     /*
-      Check whether this URL is a Supabase recovery URL.
-
-      We intentionally inspect only the type.
-      Tokens are never logged or displayed.
+      Recovery URL detection.
     */
 
     const recoveryFromURL =
@@ -1064,18 +1154,22 @@ async function restoreSession() {
     } =
       await supabaseClient.auth.getSession();
 
+
     if (error) {
       throw error;
     }
 
 
     /*
-      Recovery URL takes priority over normal session.
+      Recovery URL has priority.
     */
 
-    if (recoveryFromURL) {
+    if (
+      recoveryFromURL
+    ) {
 
-      state.recoveryMode = true;
+      state.recoveryMode =
+        true;
 
       showPasswordRecovery();
 
@@ -1083,17 +1177,40 @@ async function restoreSession() {
     }
 
 
-    if (data?.session) {
+    /*
+      Existing authenticated session.
+
+      This is the ONLY place responsible
+      for restoring the application session
+      during page boot.
+    */
+
+    if (
+      data?.session
+    ) {
+
+      initialSessionApplied =
+        true;
 
       await applyAuthenticatedSession(
         data.session
       );
 
-    } else {
-
-      showLanding();
-
+      return;
     }
+
+
+    /*
+      No session during initial boot.
+    */
+
+    state.session = null;
+    state.user = null;
+    state.profile = null;
+    state.workspace = null;
+
+    showLanding();
+
 
   } catch (error) {
 
@@ -1103,6 +1220,11 @@ async function restoreSession() {
       false,
       "Session unavailable"
     );
+
+    state.session = null;
+    state.user = null;
+    state.profile = null;
+    state.workspace = null;
 
     showLanding();
 
