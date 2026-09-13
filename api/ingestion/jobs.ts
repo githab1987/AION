@@ -334,10 +334,17 @@ async function handlePost(
       .single();
 
   if (dataObjectError) {
+    console.error("DATA_OBJECT_CREATE_FAILED", {
+      message: dataObjectError.message,
+      details: dataObjectError.details,
+      hint: dataObjectError.hint,
+      code: dataObjectError.code
+    });
+
     throw new HttpError(
       500,
       "DATA_OBJECT_CREATE_FAILED",
-      "Unable to create data object"
+      dataObjectError.message || "Unable to create data object"
     );
   }
 
