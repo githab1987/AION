@@ -1240,36 +1240,25 @@ async function processDataReady(
     payload
   );
 
-  const {
-    error
-  } =
-    await supabaseAdmin
-      .from("data_objects")
-      .update({
-        status:
-          "READY",
+  const { error } =
+  await supabaseAdmin
+    .from("data_objects")
+    .update({
+      status: "AVAILABLE",
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", dataObject.id)
+    .eq("workspace_id", context.workspaceId);
 
-        updated_at:
-          new Date().toISOString()
-      })
-      .eq(
-        "id",
-        dataObject.id
-      )
-      .eq(
-        "workspace_id",
-        context.workspaceId
-      );
+if (error) {
+  throw new HttpError(
+    500,
+    "DATA_OBJECT_READY_FAILED",
+    "Unable to mark data object as READY"
+  );
+}
 
-  if (error) {
-    throw new HttpError(
-      500,
-      "DATA_READY_UPDATE_FAILED",
-      "Unable to mark data object as READY"
-    );
-  }
-
-  return payload;
+return payload;
 }
 
 export async function processExecutionStage(
