@@ -30,8 +30,6 @@ export function errorResponse(
 
   if (error instanceof HttpError) {
 
-    // Tetap log HttpError juga, level info,
-    // supaya history tetap lengkap.
     console.error(
       "[HttpError]",
       error.code,
@@ -47,12 +45,6 @@ export function errorResponse(
       }
     };
   }
-
-  /*
-    Error tidak terduga.
-    Log SELENGKAP mungkin supaya muncul
-    di Vercel Runtime Logs.
-  */
 
   if (error instanceof Error) {
 
