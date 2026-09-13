@@ -1807,7 +1807,7 @@ async function applyAuthenticatedSession(
         {
           method: "GET"
         },
-        true
+        false
       );
 
     if (result) {
@@ -1820,36 +1820,24 @@ async function applyAuthenticatedSession(
 
     }
 
-  } } catch (error) {
-
-console.error(
-  "[SPECIAL ALI BOOT] Workspace bootstrap gagal:",
-  error
-);
-
-state.profile = null;
-state.workspace = null;
-
-throw new Error(
-  "Workspace belum berhasil dimuat. Aplikasi belum siap digunakan."
-);
-
+  } catch (error) {
+  console.warn(
+    "Profile/workspace API unavailable:",
+    error
+  );
 }
+
+updateUserIdentity();
+showApp();
 
 if (
-!state.workspace ||
-!state.workspace.id
+  window.SPECIAL_ALI_READY &&
+  typeof window.SPECIAL_ALI_READY.open === "function"
 ) {
-
-console.error(
-  "[SPECIAL ALI BOOT] Workspace tidak tersedia."
-);
-
-throw new Error(
-  "Workspace tidak tersedia. Aplikasi belum siap digunakan."
-);
-
+  window.SPECIAL_ALI_READY.open();
+  return;
 }
+await navigate("ali");
 
 updateUserIdentity();
 showApp();
