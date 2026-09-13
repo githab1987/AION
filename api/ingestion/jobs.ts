@@ -591,8 +591,22 @@ async function handlePost(
   }
 
     /* ----------------------------------------------------------
-     6. AUDIT
+     6. AUDIT (dengan hash chain)
   ---------------------------------------------------------- */
+
+  // Ambil event audit TERAKHIR di workspace ini,
+  // untuk dijadikan mata rantai sebelumnya.
+  const { data: lastEvent } =
+    await supabaseAdmin
+      .from("audit_events")
+      .select("event_hash")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  const previousEventHash =
+    lastEvent?.event_hash ?? null;
 
   const auditPayload = {
     tenant_id: tenantId,
@@ -615,8 +629,15 @@ async function handlePost(
     }
   };
 
+  // Hash dihitung dari ISI EVENT + HASH EVENT SEBELUMNYA.
+  // Kalau ada yang mengubah event lama, hash event
+  // setelahnya jadi tidak cocok lagi -> ketahuan.
   const eventHash = createHash("sha256")
-    .update(JSON.stringify(auditPayload))
+    .update(
+      JSON.stringify(auditPayload) +
+      "|" +
+      (previousEventHash ?? "GENESIS")
+    )
     .digest("hex");
 
   const { error: auditError } =
@@ -624,6 +645,7 @@ async function handlePost(
       .from("audit_events")
       .insert({
         ...auditPayload,
+        previous_event_hash: previousEventHash,
         event_hash: eventHash
       });
 
