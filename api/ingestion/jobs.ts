@@ -254,11 +254,8 @@ async function handlePost(
       mimeType
     );
 
-  /* ----------------------------------------------------------
-     1. DATA OBJECT
-  ---------------------------------------------------------- */
-
-  const {
+  
+          const {
     data: dataObject,
     error: dataObjectError
   } =
@@ -278,7 +275,7 @@ async function handlePost(
           objectType,
 
         status:
-          "RECEIVED",
+          "REGISTERED",
 
         name:
           sourceName,
@@ -300,11 +297,9 @@ async function handlePost(
         content_hash:
           contentHash,
 
-        status: "RECEIVED",
-
         content_hash_algorithm:
-        contentHash ? "SHA256" : null,
-        
+          contentHash ? "SHA256" : undefined,
+
         version:
           1,
 
@@ -332,21 +327,6 @@ async function handlePost(
       })
       .select("*")
       .single();
-
-  if (dataObjectError) {
-    console.error("DATA_OBJECT_CREATE_FAILED", {
-      message: dataObjectError.message,
-      details: dataObjectError.details,
-      hint: dataObjectError.hint,
-      code: dataObjectError.code
-    });
-
-    throw new HttpError(
-      500,
-      "DATA_OBJECT_CREATE_FAILED",
-      dataObjectError.message || "Unable to create data object"
-    );
-  }
 
   /* ----------------------------------------------------------
      2. DATA ACCESS AUTHORIZATION
