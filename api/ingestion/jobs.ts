@@ -595,35 +595,52 @@ async function handlePost(
   ---------------------------------------------------------- */
 
   const auditPayload = {
-  ...
-};
+    tenant_id: tenantId,
+    workspace_id: workspaceId,
+    execution_id: execution.id,
+    actor_user_id: userId,
+    event_type: "INGESTION_JOB_CREATED",
+    action: "CREATE",
+    entity_type: "INGESTION_JOB",
+    entity_id: ingestionJob.id,
+    result: "SUCCESS",
+    request_id: requestId,
+    reason: "SPECIAL ALI data ingestion received.",
+    metadata: {
+      data_object_id: dataObject.id,
+      execution_id: execution.id,
+      source_name: sourceName,
+      storage_path: storagePath,
+      current_stage: "DATA_RECEIVED"
+    }
+  };
 
-const eventHash = createHash("sha256")
-  .update(JSON.stringify(auditPayload))
-  .digest("hex");
+  const eventHash = createHash("sha256")
+    .update(JSON.stringify(auditPayload))
+    .digest("hex");
 
-const { error: auditError } =
-  await supabaseAdmin
-    .from("audit_events")
-    .insert({
-      ...auditPayload,
-      event_hash: eventHash
+  const { error: auditError } =
+    await supabaseAdmin
+      .from("audit_events")
+      .insert({
+        ...auditPayload,
+        event_hash: eventHash
+      });
+
+  if (auditError) {
+    console.error("AUDIT_EVENT_CREATE_FAILED", {
+      message: auditError.message,
+      details: auditError.details,
+      hint: auditError.hint,
+      code: auditError.code
     });
 
-if (auditError) {
-  console.error("AUDIT_EVENT_CREATE_FAILED", {
-    message: auditError.message,
-    details: auditError.details,
-    hint: auditError.hint,
-    code: auditError.code
-  });
-
-  throw new HttpError(
-    500,
-    "AUDIT_EVENT_CREATE_FAILED",
-    auditError.message || "Ingestion audit registration failed"
-  );
-}
+    throw new HttpError(
+      500,
+      "AUDIT_EVENT_CREATE_FAILED",
+      auditError.message || "Ingestion audit registration failed"
+    );
+  }
   /* ----------------------------------------------------------
      7. AUTHORITATIVE RESPONSE
   ---------------------------------------------------------- */
