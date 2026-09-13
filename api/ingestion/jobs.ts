@@ -4,9 +4,8 @@ import type {
 } from "@vercel/node";
 
 import {
-  startExecution,
-  advanceExecution,
-  failExecution
+  createExecution,
+  runExecution
 } from "../../core/execution/engine.js";
 
 import {
@@ -507,6 +506,11 @@ async function handlePost(
         dataObjectId:
           dataObject.id
       });
+
+    execution =
+       await runExecution(
+       execution.id
+  );
 
   } catch (error) {
 
