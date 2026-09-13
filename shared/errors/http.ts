@@ -27,7 +27,17 @@ export interface ErrorResponse {
 export function errorResponse(
   error: unknown
 ): ErrorResponse {
+
   if (error instanceof HttpError) {
+
+    // Tetap log HttpError juga, level info,
+    // supaya history tetap lengkap.
+    console.error(
+      "[HttpError]",
+      error.code,
+      error.message
+    );
+
     return {
       statusCode: error.statusCode,
       body: {
@@ -36,6 +46,30 @@ export function errorResponse(
         message: error.message
       }
     };
+  }
+
+  /*
+    Error tidak terduga.
+    Log SELENGKAP mungkin supaya muncul
+    di Vercel Runtime Logs.
+  */
+
+  if (error instanceof Error) {
+
+    console.error(
+      "[UNEXPECTED_ERROR]",
+      "name:", error.name,
+      "message:", error.message,
+      "stack:", error.stack
+    );
+
+  } else {
+
+    console.error(
+      "[UNEXPECTED_ERROR] Non-Error thrown:",
+      JSON.stringify(error)
+    );
+
   }
 
   return {
