@@ -4,6 +4,12 @@ import type {
 } from "@vercel/node";
 
 import {
+  startExecution,
+  advanceExecution,
+  failExecution
+} from "../../core/execution/engine.js";
+
+import {
   authorizeRequest
 } from "../../core/authorization/middleware.js";
 
@@ -302,10 +308,8 @@ async function handlePost(
 
         status: "RECEIVED",
 
-     // SESUDAH
-        status: "REGISTERED",
         content_hash_algorithm:
-        contentHash ? "SHA256" : undefined,
+        contentHash ? "SHA256" : null,
         
         version:
           1,
