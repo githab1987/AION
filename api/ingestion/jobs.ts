@@ -300,11 +300,13 @@ async function handlePost(
         content_hash:
           contentHash,
 
-        // SESUDAH
-        status: "REGISTERED",   // ganti ke nilai enum yang valid & sesuai default DB
-        content_hash_algorithm:
-        contentHash ? "SHA256" : undefined,  // hindari kirim null ke kolom NOT NULL
+        status: "RECEIVED",
 
+     // SESUDAH
+        status: "REGISTERED",
+        content_hash_algorithm:
+        contentHash ? "SHA256" : undefined,
+        
         version:
           1,
 
