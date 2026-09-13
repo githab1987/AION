@@ -817,9 +817,218 @@ async function processExtraction(
       new Date().toISOString()
   };
 
+/*
+    CSV: baca dan parsing isi file sungguhan.
+  */
+  if (isCsvFile(dataObject)) {
+
+    const { text, sizeBytes } =
+      await readTxtFromStorage(
+        storagePath
+      );
+
+    const parsed =
+      parseCsvContent(text);
+
+    const payload: JsonRecord = {
+      ...basePayload,
+
+      engine:
+        "SPECIAL_ALI_CSV_EXTRACTOR_V0.1",
+
+      mode:
+        "CSV_CONTENT_PARSED",
+
+      content_read:
+        true,
+
+      downloaded_bytes:
+        sizeBytes,
+
+      parsed,
+
+      note:
+        "CSV content was read and parsed."
+    };
+
+    await saveStage(
+      context,
+      "EXTRACTION",
+      payload
+    );
+
+    return payload;
+  }
+  
   /*
     TXT: baca dan parsing isi file sungguhan.
   */
+
+  function isCsvFile(
+  dataObject: DataObjectRow
+): boolean {
+  const extension =
+    (
+      dataObject.file_extension ??
+      getExtension(dataObject.name) ??
+      ""
+    ).toLowerCase();
+
+  const mime =
+    (
+      dataObject.mime_type ??
+      ""
+    ).toLowerCase();
+
+  return (
+    extension === "csv" ||
+    mime === "text/csv"
+  );
+}
+
+function detectDelimiter(
+  sampleLine: string
+): string {
+  const candidates =
+    [",", ";", "\t", "|"];
+
+  let bestDelimiter = ",";
+  let bestCount = 0;
+
+  for (const delimiter of candidates) {
+    const count =
+      sampleLine.split(delimiter).length;
+
+    if (count > bestCount) {
+      bestCount = count;
+      bestDelimiter = delimiter;
+    }
+  }
+
+  return bestDelimiter;
+}
+
+function parseCsvLine(
+  line: string,
+  delimiter: string
+): string[] {
+  const cells: string[] = [];
+  let current = "";
+  let insideQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (
+        insideQuotes &&
+        line[i + 1] === '"'
+      ) {
+        current += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+      continue;
+    }
+
+    if (
+      char === delimiter &&
+      !insideQuotes
+    ) {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  cells.push(current);
+
+  return cells.map(
+    (cell) => cell.trim()
+  );
+}
+
+function parseCsvContent(
+  text: string
+): JsonRecord {
+  const normalizedText =
+    text
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/^\uFEFF/, "");
+
+  const lines =
+    normalizedText
+      .split("\n")
+      .filter(
+        (line) => line.trim().length > 0
+      );
+
+  if (lines.length === 0) {
+    return {
+      parser: "SPECIAL_ALI_CSV_PARSER_V0.1",
+      schema: "EMPTY",
+      headers: [],
+      records: [],
+      row_count: 0,
+      character_count: normalizedText.length
+    };
+  }
+
+  const delimiter =
+    detectDelimiter(lines[0]);
+
+  const headers =
+    parseCsvLine(lines[0], delimiter)
+      .map((header) => normalizeFieldKey(header));
+
+  const records: JsonRecord[] = [];
+  const skippedRows: number[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cells =
+      parseCsvLine(lines[i], delimiter);
+
+    if (cells.length !== headers.length) {
+      skippedRows.push(i + 1);
+      continue;
+    }
+
+    const record: Record<string, unknown> = {};
+
+    headers.forEach((header, columnIndex) => {
+      record[header] =
+        parseTextScalar(
+          header,
+          cells[columnIndex]
+        );
+    });
+
+    records.push(record);
+  }
+
+  const preview =
+    normalizedText.length > 4000
+      ? normalizedText.slice(0, 4000) +
+        "\n...[PREVIEW_TRUNCATED]"
+      : normalizedText;
+
+  return {
+    parser: "SPECIAL_ALI_CSV_PARSER_V0.1",
+    schema: "TABLE",
+    delimiter,
+    headers,
+    records,
+    row_count: records.length,
+    skipped_rows: skippedRows,
+    character_count: normalizedText.length,
+    raw_text_preview: preview
+  };
+    }
+  
   if (isTxtFile(dataObject)) {
 
     const { text, sizeBytes } =
