@@ -19,6 +19,8 @@ import {
   supabaseAdmin
 } from "../../infrastructure/supabase/client.js";
 
+import { createHash } from "crypto";
+
 import {
   errorResponse,
   HttpError
@@ -591,64 +593,23 @@ async function handlePost(
      6. AUDIT
   ---------------------------------------------------------- */
 
-  const {
-    error: auditError
-  } =
-    await supabaseAdmin
-      .from("audit_events")
-      .insert({
-        tenant_id:
-          tenantId,
+  const auditPayload = {
+  ...
+};
 
-        workspace_id:
-          workspaceId,
+const eventHash = createHash("sha256")
+  .update(JSON.stringify(auditPayload))
+  .digest("hex");
 
-        execution_id:
-          execution.id,
+const { error: auditError } =
+  await supabaseAdmin
+    .from("audit_events")
+    .insert({
+      ...auditPayload,
+      event_hash: eventHash
+    });
 
-        actor_user_id:
-          userId,
-
-        event_type:
-          "INGESTION_JOB_CREATED",
-
-        action:
-          "CREATE",
-
-        entity_type:
-          "INGESTION_JOB",
-
-        entity_id:
-          ingestionJob.id,
-
-        result:
-          "SUCCESS",
-
-        request_id:
-          requestId,
-
-        reason:
-          "SPECIAL ALI data ingestion received.",
-
-        metadata: {
-          data_object_id:
-            dataObject.id,
-
-          execution_id:
-            execution.id,
-
-          source_name:
-            sourceName,
-
-          storage_path:
-            storagePath,
-
-          current_stage:
-            "DATA_RECEIVED"
-        }
-      });
-
-  if (auditError) {
+if (auditError) {
   console.error("AUDIT_EVENT_CREATE_FAILED", {
     message: auditError.message,
     details: auditError.details,
