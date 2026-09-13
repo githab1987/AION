@@ -649,13 +649,19 @@ async function handlePost(
       });
 
   if (auditError) {
+  console.error("AUDIT_EVENT_CREATE_FAILED", {
+    message: auditError.message,
+    details: auditError.details,
+    hint: auditError.hint,
+    code: auditError.code
+  });
 
-    throw new HttpError(
-      500,
-      "AUDIT_EVENT_CREATE_FAILED",
-      "Ingestion was created but audit registration failed"
-    );
-  }
+  throw new HttpError(
+    500,
+    "AUDIT_EVENT_CREATE_FAILED",
+    auditError.message || "Ingestion audit registration failed"
+  );
+}
   /* ----------------------------------------------------------
      7. AUTHORITATIVE RESPONSE
   ---------------------------------------------------------- */
