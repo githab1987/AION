@@ -3549,82 +3549,89 @@ async function processUploadSelection(files) {
 
   try {
 
-    const result = await apiRequest(
-      "/ingestion/jobs",
-      {
-        method: "POST",
-        body: {
-          workspace_id:
-            state.workspace?.id || null,
+    for (const file of files) {
 
-          files: files.map(file => ({
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            last_modified: file.lastModified
-          }))
+      /*
+        1. Buat ingestion job untuk SATU file.
+           Backend hanya menerima source_name di level atas,
+           bukan array "files".
+      */
+
+      const result = await apiRequest(
+        "/ingestion/jobs",
+        {
+          method: "POST",
+          body: {
+            source_name: file.name,
+            mime_type: file.type || null,
+            size_bytes: file.size,
+            file_extension:
+              file.name.includes(".")
+                ? file.name.split(".").pop()
+                : null
+          }
         }
-      }
-    );
-
-    if (!result) {
-      throw new Error(
-        "No ingestion job returned."
-      );
-    }
-
-    /*
-      1. Upload file ke signed URL
-    */
-
-    if (
-      Array.isArray(result.upload_urls) &&
-      result.upload_urls.length > 0
-    ) {
-
-      await uploadFilesToSignedUrls(
-        files,
-        result.upload_urls
       );
 
-    }
-
-    /*
-      2. Jalankan execution setelah
-         file berhasil di-upload.
-    */
-
-    if (result.execution_id) {
-
-      const executionResult =
-        await runExecution(
-          result.execution_id
+      if (!result) {
+        throw new Error(
+          `No ingestion job returned for ${file.name}.`
         );
+      }
+
+      /*
+        2. Upload file ini ke signed URL yang dikembalikan.
+      */
 
       if (
-        executionResult &&
-        executionResult.execution
+        Array.isArray(result.upload_urls) &&
+        result.upload_urls.length > 0
       ) {
 
-        updateExecutionUI(
-          executionResult.execution
+        await uploadFilesToSignedUrls(
+          [file],
+          result.upload_urls
         );
 
       }
 
       /*
-        3. Pantau execution sampai
-           COMPLETED / FAILED / BLOCKED
+        3. Jalankan execution untuk file ini.
       */
 
-      await monitorExecution(
-        result.execution_id
-      );
+      if (result.execution_id) {
+
+        const executionResult =
+          await runExecution(
+            result.execution_id
+          );
+
+        if (
+          executionResult &&
+          executionResult.execution
+        ) {
+
+          updateExecutionUI(
+            executionResult.execution
+          );
+
+        }
+
+        /*
+          4. Pantau execution sampai
+             COMPLETED / FAILED / BLOCKED.
+        */
+
+        await monitorExecution(
+          result.execution_id
+        );
+
+      }
 
     }
 
     /*
-      4. Setelah ingestion berhasil dibuat,
+      5. Setelah semua file selesai diproses,
          refresh state workspace.
     */
 
@@ -3634,12 +3641,10 @@ async function processUploadSelection(files) {
     };
 
     /*
-      5. Tampilkan halaman ingestion.
+      6. Tampilkan halaman ingestion.
     */
 
-    await navigate(
-      "ingestion"
-    );
+    await navigate("ingestion");
 
   } catch (error) {
 
@@ -3648,13 +3653,13 @@ async function processUploadSelection(files) {
       error
     );
 
-    renderProcessingError(
-      error
-    );
+    renderProcessingError(error);
 
   }
 
 }
+
+   
 
 
 /* ============================================================
