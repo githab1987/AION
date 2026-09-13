@@ -314,6 +314,39 @@ export async function advanceExecution(
   );
 }
 
+export async function runExecution(
+  executionId: string
+) {
+  let execution =
+    await startExecution(executionId);
+
+  try {
+    while (
+      execution.status !== "COMPLETED"
+    ) {
+      execution =
+        await advanceExecution(
+          executionId
+        );
+    }
+
+    return execution;
+  } catch (error) {
+    return await failExecution(
+      executionId,
+      {
+        code:
+          "EXECUTION_PROCESSING_FAILED",
+
+        message:
+          error instanceof Error
+            ? error.message
+            : "Execution processing failed"
+      }
+    );
+  }
+}
+
 export async function failExecution(
   executionId: string,
   errorPayload: Record<string, unknown>
