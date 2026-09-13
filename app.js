@@ -1807,7 +1807,7 @@ async function applyAuthenticatedSession(
         {
           method: "GET"
         },
-        false
+        true
       );
 
     if (result) {
@@ -1820,26 +1820,39 @@ async function applyAuthenticatedSession(
 
     }
 
-  } catch (error) {
+  } } catch (error) {
 
-    console.warn(
-      "Profile/workspace API unavailable:",
-      error
-    );
+console.error(
+  "[SPECIAL ALI BOOT] Workspace bootstrap gagal:",
+  error
+);
 
-  }
+state.profile = null;
+state.workspace = null;
 
-  updateUserIdentity();
+throw new Error(
+  "Workspace belum berhasil dimuat. Aplikasi belum siap digunakan."
+);
 
-  /*
-    Authentication is complete.
+}
 
-    Do NOT navigate directly to Command Center.
-    The READY experience is the first screen
-    after successful authentication.
-  */
+if (
+!state.workspace ||
+!state.workspace.id
+) {
 
-  showApp();
+console.error(
+  "[SPECIAL ALI BOOT] Workspace tidak tersedia."
+);
+
+throw new Error(
+  "Workspace tidak tersedia. Aplikasi belum siap digunakan."
+);
+
+}
+
+updateUserIdentity();
+showApp();
 
   if (
     window.SPECIAL_ALI_READY &&
