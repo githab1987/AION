@@ -5231,27 +5231,46 @@ async function apiRequest(
 
 
   const method =
-    options.method ||
-    "GET";
+  options.method ||
+  "GET";
 
 
-  const headers = {
+const workspaceId =
+  state.workspace?.id ||
+  state.workspace?.workspace_id ||
+  state.workspace?.workspaceId ||
+  state.profile?.workspace_id ||
+  state.profile?.workspaceId ||
+  state.user?.user_metadata?.workspace_id ||
+  state.user?.user_metadata?.workspaceId ||
+  null;
 
-    "Content-Type":
-      "application/json",
 
-    "Accept":
-      "application/json"
+const headers = {
 
-  };
+  "Content-Type":
+    "application/json",
+
+  "Accept":
+    "application/json"
+
+};
 
 
-  if (token) {
+if (workspaceId) {
 
-    headers.Authorization =
-      `Bearer ${token}`;
+  headers["X-Workspace-Id"] =
+    workspaceId;
 
-  }
+}
+
+
+if (token) {
+
+  headers.Authorization =
+    `Bearer ${token}`;
+
+}
 
 
   const response =
