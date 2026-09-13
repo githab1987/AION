@@ -21,7 +21,6 @@ import {
 } from "../../infrastructure/supabase/client.js";
 
 import { createHash } from "crypto";
-}
 
 import {
   errorResponse,
