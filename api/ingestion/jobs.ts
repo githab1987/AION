@@ -297,10 +297,11 @@ async function handlePost(
         content_hash:
           contentHash,
 
+        // SESUDAH
+        status: "REGISTERED",   // ganti ke nilai enum yang valid & sesuai default DB
+        ...
         content_hash_algorithm:
-          contentHash
-            ? "SHA-256"
-            : null,
+        contentHash ? "SHA256" : undefined,  // hindari kirim null ke kolom NOT NULL
 
         version:
           1,
