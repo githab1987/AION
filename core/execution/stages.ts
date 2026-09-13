@@ -2,6 +2,8 @@ import {
   supabaseAdmin
 } from "../../infrastructure/supabase/client.js";
 
+import * as XLSX from "xlsx";
+
 import {
   HttpError
 } from "../../shared/errors/http.js";
