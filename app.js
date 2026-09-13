@@ -1807,7 +1807,7 @@ async function applyAuthenticatedSession(
         {
           method: "GET"
         },
-        false
+        true
       );
 
     if (result) {
