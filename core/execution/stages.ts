@@ -791,13 +791,7 @@ async function processExtraction(
       )
     ].join("/");
 
-  const payload: JsonRecord = {
-    engine:
-      "SPECIAL_ALI_METADATA_EXTRACTOR_V0.1",
-
-    mode:
-      "METADATA_ONLY",
-
+  const basePayload: JsonRecord = {
     source_name:
       ingestion.source_name,
 
@@ -820,13 +814,70 @@ async function processExtraction(
       storagePath,
 
     extracted_at:
-      new Date().toISOString(),
+      new Date().toISOString()
+  };
+
+  /*
+    TXT: baca dan parsing isi file sungguhan.
+  */
+  if (isTxtFile(dataObject)) {
+
+    const { text, sizeBytes } =
+      await readTxtFromStorage(
+        storagePath
+      );
+
+    const parsed =
+      parseTxtContent(text);
+
+    const payload: JsonRecord = {
+      ...basePayload,
+
+      engine:
+        "SPECIAL_ALI_TXT_EXTRACTOR_V0.1",
+
+      mode:
+        "TXT_CONTENT_PARSED",
+
+      content_read:
+        true,
+
+      downloaded_bytes:
+        sizeBytes,
+
+      parsed,
+
+      note:
+        "TXT content was read and parsed."
+    };
+
+    await saveStage(
+      context,
+      "EXTRACTION",
+      payload
+    );
+
+    return payload;
+  }
+
+  /*
+    Format lain: masih metadata-only
+    sampai extractor-nya dibangun.
+  */
+  const payload: JsonRecord = {
+    ...basePayload,
+
+    engine:
+      "SPECIAL_ALI_METADATA_EXTRACTOR_V0.1",
+
+    mode:
+      "METADATA_ONLY",
 
     content_read:
       false,
 
     note:
-      "Binary/OCR content extraction is not enabled in v0.1. Metadata and source registration completed."
+      "Binary/OCR content extraction is not enabled in v0.1 for this file type. Metadata and source registration completed."
   };
 
   await saveStage(
@@ -837,6 +888,7 @@ async function processExtraction(
 
   return payload;
 }
+  
 
 async function processClassification(
   context: ExecutionContext
