@@ -820,6 +820,49 @@ async function processExtraction(
   };
 
 /*
+    XLSX/XLS: baca dan parsing isi file sungguhan.
+  */
+  if (isXlsxFile(dataObject)) {
+
+    const { buffer, sizeBytes } =
+      await readBinaryFromStorage(
+        storagePath
+      );
+
+    const parsed =
+      parseXlsxContent(buffer);
+
+    const payload: JsonRecord = {
+      ...basePayload,
+
+      engine:
+        "SPECIAL_ALI_XLSX_EXTRACTOR_V0.1",
+
+      mode:
+        "XLSX_CONTENT_PARSED",
+
+      content_read:
+        true,
+
+      downloaded_bytes:
+        sizeBytes,
+
+      parsed,
+
+      note:
+        "Spreadsheet content was read and parsed."
+    };
+
+    await saveStage(
+      context,
+      "EXTRACTION",
+      payload
+    );
+
+    return payload;
+  }
+  
+/*
     CSV: baca dan parsing isi file sungguhan.
   */
   if (isCsvFile(dataObject)) {
@@ -865,6 +908,175 @@ async function processExtraction(
   /*
     TXT: baca dan parsing isi file sungguhan.
   */
+
+  function isXlsxFile(
+  dataObject: DataObjectRow
+): boolean {
+  const extension =
+    (
+      dataObject.file_extension ??
+      getExtension(dataObject.name) ??
+      ""
+    ).toLowerCase();
+
+  const mime =
+    (
+      dataObject.mime_type ??
+      ""
+    ).toLowerCase();
+
+  return (
+    extension === "xlsx" ||
+    extension === "xls" ||
+    mime.includes("spreadsheet") ||
+    mime === "application/vnd.ms-excel"
+  );
+}
+
+async function readBinaryFromStorage(
+  storagePath: string
+): Promise<{
+  buffer: ArrayBuffer;
+  sizeBytes: number;
+}> {
+  const {
+    data,
+    error
+  } =
+    await supabaseAdmin
+      .storage
+      .from("evidence")
+      .download(
+        storagePath
+      );
+
+  if (
+    error ||
+    !data
+  ) {
+    throw new HttpError(
+      500,
+      "XLSX_STORAGE_READ_FAILED",
+      error?.message ??
+        "Unable to read spreadsheet from evidence storage"
+    );
+  }
+
+  const buffer =
+    await data.arrayBuffer();
+
+  if (
+    buffer.byteLength >
+    TXT_MAX_BYTES
+  ) {
+    throw new HttpError(
+      422,
+      "XLSX_FILE_TOO_LARGE",
+      "Spreadsheet file exceeds the v0.1 extraction limit of 4 MB"
+    );
+  }
+
+  return {
+    buffer,
+    sizeBytes:
+      buffer.byteLength
+  };
+}
+
+function parseXlsxContent(
+  buffer: ArrayBuffer
+): JsonRecord {
+
+  const workbook =
+    XLSX.read(
+      buffer,
+      {
+        type: "array"
+      }
+    );
+
+  const sheets: JsonRecord[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+
+    const worksheet =
+      workbook.Sheets[sheetName];
+
+    const rows =
+      XLSX.utils.sheet_to_json(
+        worksheet,
+        {
+          header: 1,
+          defval: null,
+          raw: false
+        }
+      ) as unknown[][];
+
+    if (rows.length === 0) {
+      sheets.push({
+        sheet_name: sheetName,
+        headers: [],
+        records: [],
+        row_count: 0
+      });
+      continue;
+    }
+
+    const headers =
+      (rows[0] as string[]).map(
+        (header) =>
+          normalizeFieldKey(
+            String(header ?? "")
+          )
+      );
+
+    const records: JsonRecord[] = [];
+
+    for (let i = 1; i < rows.length; i++) {
+
+      const row = rows[i];
+
+      if (
+        !row ||
+        row.every((cell) => cell === null || cell === "")
+      ) {
+        continue;
+      }
+
+      const record: Record<string, unknown> = {};
+
+      headers.forEach((header, columnIndex) => {
+        const rawValue =
+          row[columnIndex];
+
+        record[header] =
+          rawValue === null ||
+          rawValue === undefined
+            ? null
+            : parseTextScalar(
+                header,
+                String(rawValue)
+              );
+      });
+
+      records.push(record);
+    }
+
+    sheets.push({
+      sheet_name: sheetName,
+      headers,
+      records,
+      row_count: records.length
+    });
+  }
+
+  return {
+    parser: "SPECIAL_ALI_XLSX_PARSER_V0.1",
+    schema: "SPREADSHEET",
+    sheet_count: workbook.SheetNames.length,
+    sheets
+  };
+}
 
   function isCsvFile(
   dataObject: DataObjectRow
