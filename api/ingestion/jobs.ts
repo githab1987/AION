@@ -587,7 +587,7 @@ async function handlePost(
     );
   }
 
-  /* ----------------------------------------------------------
+    /* ----------------------------------------------------------
      6. AUDIT
   ---------------------------------------------------------- */
 
@@ -603,19 +603,25 @@ async function handlePost(
         workspace_id:
           workspaceId,
 
-        actor_id:
+        execution_id:
+          execution.id,
+
+        actor_user_id:
           userId,
 
-        action:
+        event_type:
           "INGESTION_JOB_CREATED",
 
-        resource_type:
+        action:
+          "CREATE",
+
+        entity_type:
           "INGESTION_JOB",
 
-        resource_id:
+        entity_id:
           ingestionJob.id,
 
-        status:
+        result:
           "SUCCESS",
 
         request_id:
@@ -650,7 +656,6 @@ async function handlePost(
       "Ingestion was created but audit registration failed"
     );
   }
-
   /* ----------------------------------------------------------
      7. AUTHORITATIVE RESPONSE
   ---------------------------------------------------------- */
