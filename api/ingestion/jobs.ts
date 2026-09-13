@@ -17,10 +17,6 @@ import {
 } from "../../core/data-center/access.js";
 
 import {
-  createExecution
-} from "../../core/execution/engine.js";
-
-import {
   supabaseAdmin
 } from "../../infrastructure/supabase/client.js";
 
