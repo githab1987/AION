@@ -503,11 +503,6 @@ async function handlePost(
           dataObject.id
       });
 
-    execution =
-       await runExecution(
-       execution.id
-  );
-
   } catch (error) {
 
     await supabaseAdmin
