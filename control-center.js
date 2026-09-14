@@ -760,6 +760,163 @@ function renderControlCenterFailure(
 
 }
 
+/* ============================================================
+   PENDING APPROVAL (HUMAN GATE)
+============================================================ */
+
+async function renderPendingApproval() {
+
+  $("#content").innerHTML = `
+
+    <div class="command-head">
+
+      <div class="eyebrow">
+        SPECIAL ALI / HUMAN GATE
+      </div>
+
+      <h1 class="page-title">
+        Pending Approval
+      </h1>
+
+      <p class="page-description">
+        Data yang sudah diproses sistem, menunggu
+        konfirmasi Anda sebelum dianggap final.
+      </p>
+
+    </div>
+
+    <section id="pendingApprovalRoot" class="card" style="padding:28px">
+      <div style="color:#6b7280;font-size:13px">
+        Memuat data yang perlu ditinjau...
+      </div>
+    </section>
+
+  `;
+
+  try {
+
+    const result = await apiRequest(
+      "/human-gates?status=OPEN",
+      { method: "GET" }
+    );
+
+    renderPendingApprovalList(
+      result?.human_gates || []
+    );
+
+  } catch (error) {
+
+    const root = $("#pendingApprovalRoot");
+
+    if (root) {
+      root.innerHTML = `
+        <div class="eyebrow">GAGAL MEMUAT</div>
+        <div style="margin-top:12px;color:#c93636;font-size:13px">
+          ${escapeHTML(normalizeError(error))}
+        </div>
+      `;
+    }
+
+  }
+
+}
+
+function renderPendingApprovalList(gates) {
+
+  const root = $("#pendingApprovalRoot");
+
+  if (!root) {
+    return;
+  }
+
+  if (!gates.length) {
+    root.innerHTML = `
+      <div class="eyebrow">TIDAK ADA YANG MENUNGGU</div>
+      <div style="margin-top:12px;font-size:14px;font-weight:600">
+        Semua data sudah dikonfirmasi.
+      </div>
+      <div class="card-copy">
+        Tidak ada Human Gate yang terbuka saat ini.
+      </div>
+    `;
+    return;
+  }
+
+  root.innerHTML = gates.map(gate => `
+    <div
+      data-gate-id="${escapeHTML(gate.id)}"
+      style="
+        border:1px solid #e5e7eb;
+        border-radius:16px;
+        padding:20px;
+        margin-bottom:14px;
+      "
+    >
+      <div style="font-size:10px;color:#8b929b;font-weight:700;letter-spacing:.08em;text-transform:uppercase">
+        ${escapeHTML(gate.gate_type || "REVIEW")}
+      </div>
+
+      <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#3f4650">
+        ${escapeHTML(gate.reason || "")}
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:10px">
+        <button
+          class="btn btn-green"
+          type="button"
+          onclick="decideHumanGate('${escapeHTML(gate.id)}', 'APPROVE')"
+        >
+          Setujui
+        </button>
+
+        <button
+          class="btn btn-danger"
+          type="button"
+          onclick="decideHumanGate('${escapeHTML(gate.id)}', 'REJECT')"
+        >
+          Tolak
+        </button>
+      </div>
+    </div>
+  `).join("");
+
+}
+
+async function decideHumanGate(humanGateId, decision) {
+
+  try {
+
+    await apiRequest(
+      "/human-gates",
+      {
+        method: "POST",
+        body: {
+          human_gate_id: humanGateId,
+          decision
+        }
+      }
+    );
+
+    typeALI(
+      decision === "APPROVE"
+        ? "Baik, data ini sudah dikonfirmasi."
+        : "Baik, data ini ditolak dan tidak akan digunakan.",
+      "HUMAN_GATE"
+    );
+
+    await renderPendingApproval();
+
+  } catch (error) {
+
+    typeALI(
+      "Terjadi masalah saat memproses keputusan Anda: " +
+      normalizeError(error),
+      "HUMAN_GATE"
+    );
+
+  }
+
+}
 
 /* ============================================================
    PUBLIC API
