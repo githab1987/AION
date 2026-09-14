@@ -51,6 +51,7 @@ interface DataObjectRow {
   metadata: JsonRecord;
   provenance: JsonRecord;
   classification: JsonRecord;
+  registered_by: string | null;   // <-- baris baru
 }
 
 function normalizeString(
@@ -1733,6 +1734,43 @@ if (error) {
   );
 }
 
+ /*
+    Buat Human Gate sederhana: minta konfirmasi user
+    sebelum data ini dianggap "final" di menu Akuntansi/Pajak.
+  */
+  const { error: gateError } =
+    await supabaseAdmin
+      .from("human_gates")
+      .insert({
+        tenant_id: context.tenantId,
+        workspace_id: context.workspaceId,
+        execution_id: context.executionId,
+        gate_type: "DATA_ROUTING_REVIEW",
+        reason:
+          `File "${ingestion.source_name}" diklasifikasikan sebagai ${selected}. ` +
+          `Periksa dan konfirmasi sebelum data ini digunakan di menu ${selected}.`,
+        context: {
+          data_object_id: dataObject.id,
+          ingestion_job_id: ingestion.id,
+          domains,
+          routing: payload.routing
+        },
+        requested_by: dataObject.registered_by
+      });
+
+  if (gateError) {
+    // Sengaja TIDAK menggagalkan seluruh ingestion kalau ini gagal --
+    // data sudah benar tersimpan di data_objects, jadi tidak boleh hilang.
+    // Tapi dicatat lengkap di log supaya kita tahu & bisa perbaiki.
+    console.error("HUMAN_GATE_CREATE_FAILED", {
+      message: gateError.message,
+      details: gateError.details,
+      hint: gateError.hint,
+      code: gateError.code
+    });
+  }
+
+  
 return payload;
 }
 
