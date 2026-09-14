@@ -1769,7 +1769,6 @@ if (error) {
       code: gateError.code
     });
   }
-
   
 return payload;
 }
