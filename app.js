@@ -2881,6 +2881,10 @@ async function renderRoute(route) {
       renderIngestion();
       break;
 
+    case "pending-approval":
+      renderPendingApproval();
+      break;
+
     case "reset-data":
       renderResetData();
       break;
