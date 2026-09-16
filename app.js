@@ -1365,11 +1365,42 @@ async function restoreSession() {
         ---------------------------------------------------- */
 
         if (
-          event === "INITIAL_SESSION"
-        ) {
+  event === "INITIAL_SESSION"
+) {
 
-          return;
-        }
+  if (
+    session &&
+    !initialSessionApplied
+  ) {
+
+    initialSessionApplied = true;
+
+    try {
+
+      await applyAuthenticatedSession(
+        session
+      );
+
+    } catch (error) {
+
+      console.error(
+        "[SPECIAL ALI AUTH] applyAuthenticatedSession (INITIAL_SESSION) gagal:",
+        error
+      );
+
+      state.session = session;
+      state.user = session.user;
+
+      setConnection(true, "Connected");
+
+      showApp();
+
+    }
+
+  }
+
+  return;
+}
 
 
         /* ----------------------------------------------------
