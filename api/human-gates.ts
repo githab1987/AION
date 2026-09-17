@@ -180,22 +180,37 @@ if (decision === "APPROVE") {
 
   const routingSelected = context?.routing?.selected;
 
+  const commonFields = {
+    tenant_id: data.tenant_id,
+    workspace_id: data.workspace_id,
+    source_human_gate_id: data.id,
+    data_object_id: context?.data_object_id ?? null,
+    ingestion_job_id: context?.ingestion_job_id ?? null,
+    title: data.reason ?? "Review item",
+    reason: data.reason ?? null,
+    status: "OPEN"
+  };
+
+  const targets: string[] = [];
+
   if (routingSelected === "INVESTIGATE") {
+    targets.push("investigation_items");
+  } else if (routingSelected === "ACCOUNTING") {
+    targets.push("accounting_review_items");
+  } else if (routingSelected === "TAX") {
+    targets.push("tax_review_items");
+  } else if (routingSelected === "BOTH") {
+    targets.push("accounting_review_items", "tax_review_items");
+  }
+
+  for (const table of targets) {
     const { error: insertError } = await supabaseAdmin
-      .from("investigation_items")
-      .insert({
-        tenant_id: data.tenant_id,
-        workspace_id: data.workspace_id,
-        source_human_gate_id: data.id,
-        data_object_id: context?.data_object_id ?? null,
-        ingestion_job_id: context?.ingestion_job_id ?? null,
-        title: data.reason ?? "Investigation item",
-        reason: data.reason ?? null,
-        status: "OPEN"
-      });
+      .from(table)
+      .insert(commonFields);
 
     if (insertError) {
-      console.error("INVESTIGATION_ITEM_INSERT_FAILED", {
+      console.error("REVIEW_ITEM_INSERT_FAILED", {
+        table,
         message: insertError.message,
         details: insertError.details,
         hint: insertError.hint,
@@ -204,15 +219,6 @@ if (decision === "APPROVE") {
     }
   }
 }
-
-return json(res, 200, {
-  ok: true,
-  service: "SPECIAL ALI",
-  component: "HUMAN_GATE",
-  human_gate: data
-});
-}
-
 /* ============================================================
    HANDLER
 ============================================================ */
