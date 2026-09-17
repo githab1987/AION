@@ -170,6 +170,7 @@ async function handlePost(
 
   if (decision === "APPROVE") {
     let context: any = {};
+
     try {
       context = typeof data.context === "string"
         ? JSON.parse(data.context)
@@ -200,7 +201,10 @@ async function handlePost(
     } else if (routingSelected === "TAX") {
       targets.push("tax_review_items");
     } else if (routingSelected === "BOTH") {
-      targets.push("accounting_review_items", "tax_review_items");
+      targets.push(
+        "accounting_review_items",
+        "tax_review_items"
+      );
     }
 
     for (const table of targets) {
@@ -238,16 +242,20 @@ export default async function handler(
 ) {
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ ok: false, error: "METHOD_NOT_ALLOWED" });
+    return res.status(405).json({
+      ok: false,
+      error: "METHOD_NOT_ALLOWED"
+    });
   }
 
   try {
     if (req.method === "POST") {
       return await handlePost(req, res);
     }
+
     return await handleGet(req, res);
   } catch (error) {
     const response = errorResponse(error);
     return res.status(response.statusCode).json(response.body);
   }
-});
+}
