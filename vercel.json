@@ -11,10 +11,6 @@
 "destination": "/api/ingestion/jobs"
 },
 {
-"source": "/api/v1/me/human-gates",
-"destination": "/api/me/human-gates"
-},
-{
 "source": "/api/v1/human-gates",
 "destination": "/api/human-gates"
 }
