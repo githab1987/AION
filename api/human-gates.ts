@@ -124,7 +124,7 @@ async function handlePost(
   const reason = normalizeString(body.reason);
   const now = new Date().toISOString();
   const nextStatus = decision === "APPROVE" ? "PASS" : "BLOCK";
-  
+
   const { data, error } =
     await supabaseAdmin
       .from("human_gates")
@@ -157,68 +157,77 @@ async function handlePost(
   }
 
   if (!data) {
-  throw new HttpError(
-    404,
-    "HUMAN_GATE_NOT_FOUND_OR_ALREADY_DECIDED",
-    "Human gate tidak ditemukan atau sudah diputuskan sebelumnya"
-  );
-}
-
-/* ============================================================
-   ROUTE TO INVESTIGATION (jika APPROVE dan tujuan INVESTIGATE)
-============================================================ */
-
-if (decision === "APPROVE") {
-  let context: any = {};
-  try {
-    context = typeof data.context === "string"
-      ? JSON.parse(data.context)
-      : (data.context || {});
-  } catch {
-    context = {};
+    throw new HttpError(
+      404,
+      "HUMAN_GATE_NOT_FOUND_OR_ALREADY_DECIDED",
+      "Human gate tidak ditemukan atau sudah diputuskan sebelumnya"
+    );
   }
 
-  const routingSelected = context?.routing?.selected;
+  /* ============================================================
+     ROUTE TO REVIEW TABLES (jika APPROVE)
+  ============================================================ */
 
-  const commonFields = {
-    tenant_id: data.tenant_id,
-    workspace_id: data.workspace_id,
-    source_human_gate_id: data.id,
-    data_object_id: context?.data_object_id ?? null,
-    ingestion_job_id: context?.ingestion_job_id ?? null,
-    title: data.reason ?? "Review item",
-    reason: data.reason ?? null,
-    status: "OPEN"
-  };
+  if (decision === "APPROVE") {
+    let context: any = {};
+    try {
+      context = typeof data.context === "string"
+        ? JSON.parse(data.context)
+        : (data.context || {});
+    } catch {
+      context = {};
+    }
 
-  const targets: string[] = [];
+    const routingSelected = context?.routing?.selected;
 
-  if (routingSelected === "INVESTIGATE") {
-    targets.push("investigation_items");
-  } else if (routingSelected === "ACCOUNTING") {
-    targets.push("accounting_review_items");
-  } else if (routingSelected === "TAX") {
-    targets.push("tax_review_items");
-  } else if (routingSelected === "BOTH") {
-    targets.push("accounting_review_items", "tax_review_items");
-  }
+    const commonFields = {
+      tenant_id: data.tenant_id,
+      workspace_id: data.workspace_id,
+      source_human_gate_id: data.id,
+      data_object_id: context?.data_object_id ?? null,
+      ingestion_job_id: context?.ingestion_job_id ?? null,
+      title: data.reason ?? "Review item",
+      reason: data.reason ?? null,
+      status: "OPEN"
+    };
 
-  for (const table of targets) {
-    const { error: insertError } = await supabaseAdmin
-      .from(table)
-      .insert(commonFields);
+    const targets: string[] = [];
 
-    if (insertError) {
-      console.error("REVIEW_ITEM_INSERT_FAILED", {
-        table,
-        message: insertError.message,
-        details: insertError.details,
-        hint: insertError.hint,
-        code: insertError.code
-      });
+    if (routingSelected === "INVESTIGATE") {
+      targets.push("investigation_items");
+    } else if (routingSelected === "ACCOUNTING") {
+      targets.push("accounting_review_items");
+    } else if (routingSelected === "TAX") {
+      targets.push("tax_review_items");
+    } else if (routingSelected === "BOTH") {
+      targets.push("accounting_review_items", "tax_review_items");
+    }
+
+    for (const table of targets) {
+      const { error: insertError } = await supabaseAdmin
+        .from(table)
+        .insert(commonFields);
+
+      if (insertError) {
+        console.error("REVIEW_ITEM_INSERT_FAILED", {
+          table,
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+          code: insertError.code
+        });
+      }
     }
   }
+
+  return json(res, 200, {
+    ok: true,
+    service: "SPECIAL ALI",
+    component: "HUMAN_GATE",
+    human_gate: data
+  });
 }
+
 /* ============================================================
    HANDLER
 ============================================================ */
