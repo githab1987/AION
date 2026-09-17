@@ -914,6 +914,102 @@ async function decideHumanGate(humanGateId, decision) {
 }
 
 /* ============================================================
+   INVESTIGATION
+============================================================ */
+
+async function renderInvestigation() {
+
+  $("#content").innerHTML = `
+    <div class="command-head">
+      <div class="eyebrow">
+        SPECIAL ALI / INVESTIGATION
+      </div>
+      <h1 class="page-title">
+        Investigation
+      </h1>
+      <p class="page-description">
+        Data yang perlu diperiksa lebih lanjut sebelum
+        digunakan di modul Accounting atau Tax.
+      </p>
+    </div>
+
+    <section id="investigationRoot" class="card" style="padding:28px">
+      <div style="color:#6b7280;font-size:13px">
+        Memuat data investigasi...
+      </div>
+    </section>
+  `;
+
+  try {
+
+    const result = await apiRequest(
+      "/investigation",
+      { method: "GET" }
+    );
+
+    renderInvestigationList(
+      result?.items || []
+    );
+
+  } catch (error) {
+
+    const root = $("#investigationRoot");
+
+    if (root) {
+      root.innerHTML = `
+        <div class="eyebrow">GAGAL MEMUAT</div>
+        <div style="margin-top:12px;color:#c93636;font-size:13px">
+          ${escapeHTML(normalizeError(error))}
+        </div>
+      `;
+    }
+  }
+}
+
+function renderInvestigationList(items) {
+
+  const root = $("#investigationRoot");
+
+  if (!root) {
+    return;
+  }
+
+  if (!items.length) {
+    root.innerHTML = `
+      <div class="eyebrow">TIDAK ADA DATA</div>
+      <div style="margin-top:12px;font-size:14px;font-weight:600">
+        Belum ada data investigasi.
+      </div>
+      <div class="card-copy">
+        Data akan muncul di sini setelah dikonfirmasi lewat Human Gate.
+      </div>
+    `;
+    return;
+  }
+
+  root.innerHTML = items.map(item => `
+    <div
+      style="
+        border:1px solid #e5e7eb;
+        border-radius:16px;
+        padding:20px;
+        margin-bottom:14px;
+      "
+    >
+      <div style="font-size:10px;color:#8b929b;font-weight:700;letter-spacing:.08em;text-transform:uppercase">
+        ${escapeHTML(item.status || "OPEN")}
+      </div>
+      <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#3f4650">
+        ${escapeHTML(item.title || "")}
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:#9ca3af">
+        ${escapeHTML(item.created_at || "")}
+      </div>
+    </div>
+  `).join("");
+}
+
+/* ============================================================
    PUBLIC API
 ============================================================ */
 
