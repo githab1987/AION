@@ -123,8 +123,8 @@ async function handlePost(
 
   const reason = normalizeString(body.reason);
   const now = new Date().toISOString();
-  const nextStatus = decision === "APPROVE" ? "DECIDED" : "REJECTED";
-
+  const nextStatus = decision === "APPROVE" ? "PASS" : "BLOCK";
+  
   const { data, error } =
     await supabaseAdmin
       .from("human_gates")
