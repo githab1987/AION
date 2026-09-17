@@ -157,19 +157,60 @@ async function handlePost(
   }
 
   if (!data) {
-    throw new HttpError(
-      404,
-      "HUMAN_GATE_NOT_FOUND_OR_ALREADY_DECIDED",
-      "Human gate tidak ditemukan atau sudah diputuskan sebelumnya"
-    );
+  throw new HttpError(
+    404,
+    "HUMAN_GATE_NOT_FOUND_OR_ALREADY_DECIDED",
+    "Human gate tidak ditemukan atau sudah diputuskan sebelumnya"
+  );
+}
+
+/* ============================================================
+   ROUTE TO INVESTIGATION (jika APPROVE dan tujuan INVESTIGATE)
+============================================================ */
+
+if (decision === "APPROVE") {
+  let context: any = {};
+  try {
+    context = typeof data.context === "string"
+      ? JSON.parse(data.context)
+      : (data.context || {});
+  } catch {
+    context = {};
   }
 
-  return json(res, 200, {
-    ok: true,
-    service: "SPECIAL ALI",
-    component: "HUMAN_GATE",
-    human_gate: data
-  });
+  const routingSelected = context?.routing?.selected;
+
+  if (routingSelected === "INVESTIGATE") {
+    const { error: insertError } = await supabaseAdmin
+      .from("investigation_items")
+      .insert({
+        tenant_id: data.tenant_id,
+        workspace_id: data.workspace_id,
+        source_human_gate_id: data.id,
+        data_object_id: context?.data_object_id ?? null,
+        ingestion_job_id: context?.ingestion_job_id ?? null,
+        title: data.reason ?? "Investigation item",
+        reason: data.reason ?? null,
+        status: "OPEN"
+      });
+
+    if (insertError) {
+      console.error("INVESTIGATION_ITEM_INSERT_FAILED", {
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint,
+        code: insertError.code
+      });
+    }
+  }
+}
+
+return json(res, 200, {
+  ok: true,
+  service: "SPECIAL ALI",
+  component: "HUMAN_GATE",
+  human_gate: data
+});
 }
 
 /* ============================================================
