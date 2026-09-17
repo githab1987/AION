@@ -17,6 +17,10 @@
     {
       "source": "/api/v1/human-gates",
       "destination": "/api/human-gates"
+    },
+    {
+      "source": "/api/v1/investigation",
+      "destination": "/api/investigation"
     }
   ]
 }
