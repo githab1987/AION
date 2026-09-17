@@ -250,4 +250,4 @@ export default async function handler(
     const response = errorResponse(error);
     return res.status(response.statusCode).json(response.body);
   }
-}
+});
