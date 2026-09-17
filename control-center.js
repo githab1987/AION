@@ -28,12 +28,7 @@ async function loadControlCenterState() {
 
 
   const result =
-    await apiRequest(
-      "/v1/control-center/state",
-      {
-        method: "GET"
-      }
-    );
+    await apiRequest("/control-center/state", { method: "GET" });
 
 
   /* ----------------------------------------------------------
