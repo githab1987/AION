@@ -18,17 +18,8 @@
       "source": "/api/v1/human-gates",
       "destination": "/api/human-gates"
     },
-    {
-      "source": "/api/v1/investigation",
-      "destination": "/api/investigation"
-    },
-    { 
-      "source": "/api/v1/accounting-review", 
-      "destination": "/api/accounting-review" 
-    },
-    { 
-      "source": "/api/v1/tax-review", 
-      "destination": "/api/tax-review" 
+    { "source": "/api/v1/review-items", 
+      "destination": "/api/review-items" 
     }
   ]
 }
