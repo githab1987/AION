@@ -943,9 +943,11 @@ async function renderInvestigation() {
   try {
 
     const result = await apiRequest(
-      "/investigation",
-      { method: "GET" }
-    );
+       "/review-items?type=investigation", 
+       { 
+          method: "GET" 
+       
+    });
 
     renderInvestigationList(
       result?.items || []
