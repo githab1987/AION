@@ -1056,22 +1056,60 @@ function renderReviewList(rootId, items) {
 
   root.innerHTML = items.map(item => {
 
-    const fields = item.extracted_data || {};
-    const fieldKeys = Object.keys(fields);
+    const extracted = item.extracted_data || {};
 
-    const fieldRows = fieldKeys.map(k => `
-      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f1f1f1">
-        <span style="color:#8b929b;font-size:11px;text-transform:uppercase">${escapeHTML(k)}</span>
-        <span style="font-size:13px;font-weight:600">${escapeHTML(String(fields[k]))}</span>
-      </div>
-    `).join("");
+    // data lama (sebelum patch ini): extracted_data langsung
+    // berupa flat fields object, tanpa properti "kind".
+    let kind = extracted.kind;
+    let fields = extracted.fields;
+    let sheets = extracted.sheets;
+
+    if (!kind) {
+      kind = "FIELDS";
+      fields = extracted;
+    }
+
+    let bodyHtml = "";
+
+    if (kind === "FIELDS") {
+      const fieldKeys = Object.keys(fields || {});
+
+      bodyHtml = fieldKeys.length ? `
+        <div style="margin-top:12px">
+          ${fieldKeys.map(k => `
+            <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f1f1f1">
+              <span style="color:#8b929b;font-size:11px;text-transform:uppercase">${escapeHTML(k)}</span>
+              <span style="font-size:13px;font-weight:600">${escapeHTML(String(fields[k]))}</span>
+            </div>
+          `).join("")}
+        </div>
+      ` : "";
+    }
+
+    if (kind === "SPREADSHEET") {
+      bodyHtml = (sheets || []).map(sheet => `
+        <div style="margin-top:14px">
+          <div style="font-size:11px;font-weight:700;color:#3f4650;text-transform:uppercase;letter-spacing:.06em">
+            ${escapeHTML(sheet.sheet_name)}
+          </div>
+          <div style="margin-top:6px">
+            ${(sheet.line_items || []).map(li => `
+              <div style="display:flex;justify-content:space-between;padding:4px 0;padding-left:${(li.level || 0) * 12}px;border-bottom:1px solid #f1f1f1">
+                <span style="color:#8b929b;font-size:12px">${escapeHTML(li.label || "")}</span>
+                <span style="font-size:13px;font-weight:600">${escapeHTML(String(li.value))}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `).join("");
+    }
 
     return `
       <div style="border:1px solid #e5e7eb;border-radius:16px;padding:20px;margin-bottom:14px">
         <div style="font-size:10px;color:#8b929b;font-weight:700;letter-spacing:.08em;text-transform:uppercase">
           ${escapeHTML(item.status || "OPEN")}
         </div>
-        ${fieldKeys.length ? `<div style="margin-top:12px">${fieldRows}</div>` : `
+        ${bodyHtml || `
           <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#3f4650">${escapeHTML(item.title || "")}</div>
         `}
         <div style="margin-top:8px;font-size:11px;color:#9ca3af">${escapeHTML(item.created_at || "")}</div>
