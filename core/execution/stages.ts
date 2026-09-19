@@ -214,7 +214,7 @@ function inferDomains(
     "jurnal",
     "buku besar",
     "debit",
-    "kredit"
+    "kredit",
     "ledger",
     "finance",
     "keuangan",
