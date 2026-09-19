@@ -1054,19 +1054,30 @@ function renderReviewList(rootId, items) {
     return;
   }
 
-  root.innerHTML = items.map(item => `
-    <div style="border:1px solid #e5e7eb;border-radius:16px;padding:20px;margin-bottom:14px">
-      <div style="font-size:10px;color:#8b929b;font-weight:700;letter-spacing:.08em;text-transform:uppercase">
-        ${escapeHTML(item.status || "OPEN")}
+  root.innerHTML = items.map(item => {
+
+    const fields = item.extracted_data || {};
+    const fieldKeys = Object.keys(fields);
+
+    const fieldRows = fieldKeys.map(k => `
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f1f1f1">
+        <span style="color:#8b929b;font-size:11px;text-transform:uppercase">${escapeHTML(k)}</span>
+        <span style="font-size:13px;font-weight:600">${escapeHTML(String(fields[k]))}</span>
       </div>
-      <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#3f4650">
-        ${escapeHTML(item.title || "")}
+    `).join("");
+
+    return `
+      <div style="border:1px solid #e5e7eb;border-radius:16px;padding:20px;margin-bottom:14px">
+        <div style="font-size:10px;color:#8b929b;font-weight:700;letter-spacing:.08em;text-transform:uppercase">
+          ${escapeHTML(item.status || "OPEN")}
+        </div>
+        ${fieldKeys.length ? `<div style="margin-top:12px">${fieldRows}</div>` : `
+          <div style="margin-top:10px;font-size:14px;line-height:1.6;color:#3f4650">${escapeHTML(item.title || "")}</div>
+        `}
+        <div style="margin-top:8px;font-size:11px;color:#9ca3af">${escapeHTML(item.created_at || "")}</div>
       </div>
-      <div style="margin-top:8px;font-size:11px;color:#9ca3af">
-        ${escapeHTML(item.created_at || "")}
-      </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
 }
 
 
