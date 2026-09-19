@@ -949,9 +949,7 @@ async function renderInvestigation() {
        
     });
 
-    renderInvestigationList(
-      result?.items || []
-    );
+    renderReviewList("investigationRoot", result?.items || []);
 
   } catch (error) {
 
@@ -968,36 +966,96 @@ async function renderInvestigation() {
   }
 }
 
-function renderInvestigationList(items) {
+/* ============================================================
+   ACCOUNTING REVIEW
+============================================================ */
 
-  const root = $("#investigationRoot");
+async function renderAccountingReview() {
 
-  if (!root) {
-    return;
+  $("#content").innerHTML = `
+    <div class="command-head">
+      <div class="eyebrow">SPECIAL ALI / ACCOUNTING</div>
+      <h1 class="page-title">Accounting Review</h1>
+      <p class="page-description">
+        Data yang dialihkan ke Accounting setelah dikonfirmasi lewat Human Gate.
+      </p>
+    </div>
+    <section id="accountingReviewRoot" class="card" style="padding:28px">
+      <div style="color:#6b7280;font-size:13px">Memuat data...</div>
+    </section>
+  `;
+
+  try {
+    const result = await apiRequest("/review-items?type=accounting", { method: "GET" });
+    renderReviewList("accountingReviewRoot", result?.items || []);
+  } catch (error) {
+    const root = $("#accountingReviewRoot");
+    if (root) {
+      root.innerHTML = `
+        <div class="eyebrow">GAGAL MEMUAT</div>
+        <div style="margin-top:12px;color:#c93636;font-size:13px">
+          ${escapeHTML(normalizeError(error))}
+        </div>
+      `;
+    }
   }
+}
+
+/* ============================================================
+   TAX REVIEW
+============================================================ */
+
+async function renderTaxReview() {
+
+  $("#content").innerHTML = `
+    <div class="command-head">
+      <div class="eyebrow">SPECIAL ALI / TAX</div>
+      <h1 class="page-title">Tax Review</h1>
+      <p class="page-description">
+        Data yang dialihkan ke Tax setelah dikonfirmasi lewat Human Gate.
+      </p>
+    </div>
+    <section id="taxReviewRoot" class="card" style="padding:28px">
+      <div style="color:#6b7280;font-size:13px">Memuat data...</div>
+    </section>
+  `;
+
+  try {
+    const result = await apiRequest("/review-items?type=tax", { method: "GET" });
+    renderReviewList("taxReviewRoot", result?.items || []);
+  } catch (error) {
+    const root = $("#taxReviewRoot");
+    if (root) {
+      root.innerHTML = `
+        <div class="eyebrow">GAGAL MEMUAT</div>
+        <div style="margin-top:12px;color:#c93636;font-size:13px">
+          ${escapeHTML(normalizeError(error))}
+        </div>
+      `;
+    }
+  }
+}
+
+/* ============================================================
+   SHARED LIST RENDERER (dipakai investigation, accounting, tax)
+============================================================ */
+
+function renderReviewList(rootId, items) {
+
+  const root = $("#" + rootId);
+  if (!root) return;
 
   if (!items.length) {
     root.innerHTML = `
       <div class="eyebrow">TIDAK ADA DATA</div>
-      <div style="margin-top:12px;font-size:14px;font-weight:600">
-        Belum ada data investigasi.
-      </div>
-      <div class="card-copy">
-        Data akan muncul di sini setelah dikonfirmasi lewat Human Gate.
-      </div>
+      <div style="margin-top:12px;font-size:14px;font-weight:600">Belum ada data.</div>
+      <div class="card-copy">Data akan muncul di sini setelah dikonfirmasi lewat Human Gate.</div>
     `;
     return;
   }
 
   root.innerHTML = items.map(item => `
-    <div
-      style="
-        border:1px solid #e5e7eb;
-        border-radius:16px;
-        padding:20px;
-        margin-bottom:14px;
-      "
-    >
+    <div style="border:1px solid #e5e7eb;border-radius:16px;padding:20px;margin-bottom:14px">
       <div style="font-size:10px;color:#8b929b;font-weight:700;letter-spacing:.08em;text-transform:uppercase">
         ${escapeHTML(item.status || "OPEN")}
       </div>
@@ -1010,6 +1068,7 @@ function renderInvestigationList(items) {
     </div>
   `).join("");
 }
+
 
 /* ============================================================
    PUBLIC API
