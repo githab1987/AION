@@ -157,12 +157,20 @@ function inferDocumentType(
 }
 
 function inferDomains(
-  object: DataObjectRow
+  object: DataObjectRow,
+  extraction?: JsonRecord
 ): string[] {
+
+  const extractedText =
+    extraction && typeof extraction === "object"
+      ? JSON.stringify((extraction as any).parsed?.fields ?? {})
+      : "";
+
   const text = [
     object.name,
     object.mime_type ?? "",
-    object.file_extension ?? ""
+    object.file_extension ?? "",
+    extractedText
   ]
     .join(" ")
     .toLowerCase();
@@ -182,6 +190,13 @@ function inferDomains(
     "sales",
     "journal",
     "accounting"
+    "beli",
+    "jual",
+    "total",
+    "harga",
+    "toko",
+    "usaha",
+    "bukti transaksi"
   ];
 
   const taxTerms = [
@@ -1318,9 +1333,10 @@ async function processClassification(
   context: ExecutionContext
 ) {
   const {
-    dataObject
-  } =
-    await getContext(context);
+  dataObject,
+  ingestion
+} =
+  await getContext(context);
 
   const documentType =
     inferDocumentType(
@@ -1329,7 +1345,8 @@ async function processClassification(
 
   const domains =
     inferDomains(
-      dataObject
+      dataObject,
+      ingestion?.extraction
     );
 
   const payload: JsonRecord = {
