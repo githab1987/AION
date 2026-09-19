@@ -215,6 +215,10 @@ function inferDomains(
     "buku besar",
     "debit",
     "kredit"
+    "ledger",
+    "finance",
+    "keuangan",
+    "financial"
   ];
 
   const taxTerms = [
