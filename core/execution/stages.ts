@@ -189,14 +189,32 @@ function inferDomains(
     "purchase",
     "sales",
     "journal",
-    "accounting"
+    "accounting",
     "beli",
     "jual",
-    "total",
-    "harga",
-    "toko",
-    "usaha",
-    "bukti transaksi"
+    "beban",
+    "penjualan",
+    "pembelian",
+    "persediaan",
+    "gaji",
+    "sewa",
+    "tunjangan",
+    "biaya",
+    "hpp",
+    "harga pokok",
+    "neraca",
+    "aktiva",
+    "kewajiban",
+    "ekuitas",
+    "piutang",
+    "hutang",
+    "kas dan bank",
+    "modal saham",
+    "laba ditahan",
+    "jurnal",
+    "buku besar",
+    "debit",
+    "kredit"
   ];
 
   const taxTerms = [
@@ -206,7 +224,21 @@ function inferDomains(
     "pph",
     "npwp",
     "faktur pajak",
-    "efaktur"
+    "efaktur",
+    "spt",
+    "ssp",
+    "pph pasal",
+    "pph ps",
+    "penghasilan kena pajak",
+    "penghasilan bruto",
+    "angsuran pajak",
+    "kredit pajak",
+    "hutang pajak",
+    "pajak dibayar dimuka",
+    "pajak tangguhan",
+    "kpp",
+    "dirjen pajak",
+    "bea cukai"
   ];
 
   if (
