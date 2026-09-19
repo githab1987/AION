@@ -1074,6 +1074,22 @@ function parseXlsxContent(
       continue;
     }
 
+    /*
+      Deteksi jenis sheet: tabel datar (baris 1 = header
+      kolom, rapi) vs layout laporan keuangan (label di
+      kolom kiri dengan level hierarki, nilai di kolom
+      paling kanan yang terisi - seperti NERACA / LABA RUGI).
+    */
+    if (!isFlatTableSheet(rows)) {
+      sheets.push(
+        parseFinancialStatementLayout(
+          rows,
+          sheetName
+        )
+      );
+      continue;
+    }
+
     const headers =
       (rows[0] as string[]).map(
         (header) =>
@@ -1128,6 +1144,200 @@ function parseXlsxContent(
     sheet_count: workbook.SheetNames.length,
     sheets
   };
+}
+
+/*
+  Sheet dianggap "tabel datar" kalau baris pertamanya
+  terisi rapi di sebagian besar kolom (ciri-ciri header
+  tabel biasa). Kalau baris pertama cuma terisi 1-2 sel
+  saja (mis. nama perusahaan), berarti ini layout laporan
+  keuangan, bukan tabel.
+*/
+function isFlatTableSheet(
+  rows: unknown[][]
+): boolean {
+
+  const headerRow =
+    rows[0] ?? [];
+
+  const maxColumns =
+    rows.reduce(
+      (max, row) =>
+        Math.max(max, row?.length ?? 0),
+      0
+    );
+
+  if (maxColumns === 0) {
+    return false;
+  }
+
+  const filledInHeader =
+    headerRow.filter(
+      (cell) =>
+        cell !== null &&
+        String(cell).trim() !== ""
+    ).length;
+
+  const headerDensity =
+    filledInHeader / maxColumns;
+
+  return headerDensity >= 0.5;
+}
+
+/*
+  Parser untuk sheet gaya laporan keuangan (NERACA, LABA
+  RUGI, dll): tiap baris dibaca sebagai satu "line item" -
+  label diambil dari sel teks paling kiri yang terisi
+  (posisi kolomnya jadi level hierarki), nilai diambil dari
+  sel angka paling kanan yang terisi di baris yang sama.
+*/
+function parseFinancialStatementLayout(
+  rows: unknown[][],
+  sheetName: string
+): JsonRecord {
+
+  const lineItems: JsonRecord[] = [];
+
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+
+    const row =
+      rows[rowIndex] ?? [];
+
+    let labelColumnIndex = -1;
+    let label = "";
+
+    for (let columnIndex = 0; columnIndex < row.length; columnIndex++) {
+
+      const cell = row[columnIndex];
+
+      const cellText =
+        cell === null || cell === undefined
+          ? ""
+          : String(cell).trim();
+
+      if (
+        cellText &&
+        parseLayoutNumber(cellText) === null
+      ) {
+        labelColumnIndex = columnIndex;
+        label = cellText;
+        break;
+      }
+    }
+
+    if (labelColumnIndex === -1) {
+      continue;
+    }
+
+    let valueColumnIndex = -1;
+    let value: number | null = null;
+
+    for (
+      let columnIndex = row.length - 1;
+      columnIndex > labelColumnIndex;
+      columnIndex--
+    ) {
+
+      const cell = row[columnIndex];
+
+      const cellText =
+        cell === null || cell === undefined
+          ? ""
+          : String(cell).trim();
+
+      if (!cellText) {
+        continue;
+      }
+
+      const numericValue =
+        parseLayoutNumber(cellText);
+
+      if (numericValue !== null) {
+        valueColumnIndex = columnIndex;
+        value = numericValue;
+        break;
+      }
+    }
+
+    lineItems.push({
+      label,
+      level: labelColumnIndex,
+      value,
+      row: rowIndex + 1,
+      label_cell:
+        `${sheetName}!${columnIndexToLetter(labelColumnIndex)}${rowIndex + 1}`,
+      value_cell:
+        valueColumnIndex === -1
+          ? null
+          : `${sheetName}!${columnIndexToLetter(valueColumnIndex)}${rowIndex + 1}`
+    });
+  }
+
+  return {
+    sheet_name: sheetName,
+    layout: "FINANCIAL_STATEMENT_LAYOUT",
+    line_items: lineItems,
+    row_count: lineItems.length
+  };
+}
+
+function parseLayoutNumber(
+  text: string
+): number | null {
+
+  const cleaned =
+    text
+      .replace(/rp/gi, "")
+      .replace(/\s/g, "");
+
+  if (!cleaned) {
+    return null;
+  }
+
+  const isParenthesized =
+    /^\(.*\)$/.test(cleaned);
+
+  const withoutParens =
+    isParenthesized
+      ? cleaned.slice(1, -1)
+      : cleaned;
+
+  const withoutThousands =
+    withoutParens.replace(/,/g, "");
+
+  if (
+    !/^-?\d+(\.\d+)?$/.test(withoutThousands)
+  ) {
+    return null;
+  }
+
+  const numberValue =
+    Number(withoutThousands);
+
+  if (!Number.isFinite(numberValue)) {
+    return null;
+  }
+
+  return isParenthesized
+    ? -numberValue
+    : numberValue;
+}
+
+function columnIndexToLetter(
+  index: number
+): string {
+
+  let n = index + 1;
+  let letters = "";
+
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    letters =
+      String.fromCharCode(65 + remainder) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+
+  return letters;
 }
 
   function isCsvFile(
