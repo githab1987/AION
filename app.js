@@ -2888,6 +2888,14 @@ async function renderRoute(route) {
       renderInvestigation();
       break;
 
+   case "accounting-overview":
+      renderAccountingReview();
+      break;
+
+   case "tax-overview":
+      renderTaxReview();
+      break;
+
     case "reconciliation":
       renderReconciliation();
       break;
