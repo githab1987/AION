@@ -169,69 +169,67 @@ async function handlePost(
   ============================================================ */
 
   if (decision === "APPROVE") {
-    let context: any = {};
-
-    try {
-      context = typeof data.context === "string"
-        ? JSON.parse(data.context)
-        : (data.context || {});
-    } catch {
-      context = {};
-    }
-
-    const routingSelected = context?.routing?.selected;
-
-    const commonFields = {
-      tenant_id: data.tenant_id,
-      workspace_id: data.workspace_id,
-      source_human_gate_id: data.id,
-      data_object_id: context?.data_object_id ?? null,
-      ingestion_job_id: context?.ingestion_job_id ?? null,
-      title: data.reason ?? "Review item",
-      reason: data.reason ?? null,
-      status: "OPEN"
-    };
-
-    const targets: string[] = [];
-
-    if (routingSelected === "INVESTIGATE") {
-      targets.push("investigation_items");
-    } else if (routingSelected === "ACCOUNTING") {
-      targets.push("accounting_review_items");
-    } else if (routingSelected === "TAX") {
-      targets.push("tax_review_items");
-    } else if (routingSelected === "BOTH") {
-      targets.push(
-        "accounting_review_items",
-        "tax_review_items"
-      );
-    }
-
-    for (const table of targets) {
-      const { error: insertError } = await supabaseAdmin
-        .from(table)
-        .insert(commonFields);
-
-      if (insertError) {
-        console.error("REVIEW_ITEM_INSERT_FAILED", {
-          table,
-          message: insertError.message,
-          details: insertError.details,
-          hint: insertError.hint,
-          code: insertError.code
-        });
-      }
-    }
+  let context: any = {};
+  try {
+    context = typeof data.context === "string"
+      ? JSON.parse(data.context)
+      : (data.context || {});
+  } catch {
+    context = {};
   }
 
-  return json(res, 200, {
-    ok: true,
-    service: "SPECIAL ALI",
-    component: "HUMAN_GATE",
-    human_gate: data
-  });
-}
+  let extractedData: any = null;
+  if (context?.ingestion_job_id) {
+    const { data: jobRow } = await supabaseAdmin
+      .from("ingestion_jobs")
+      .select("extraction")
+      .eq("id", context.ingestion_job_id)
+      .maybeSingle();
+    extractedData = jobRow?.extraction?.parsed?.fields ?? null;
+  }
 
+  const routingSelected = context?.routing?.selected;
+
+  const commonFields = {
+    tenant_id: data.tenant_id,
+    workspace_id: data.workspace_id,
+    source_human_gate_id: data.id,
+    data_object_id: context?.data_object_id ?? null,
+    ingestion_job_id: context?.ingestion_job_id ?? null,
+    title: data.reason ?? "Review item",
+    reason: data.reason ?? null,
+    status: "OPEN",
+    extracted_data: extractedData
+  };
+
+  const targets: string[] = [];
+
+  if (routingSelected === "INVESTIGATE") {
+    targets.push("investigation_items");
+  } else if (routingSelected === "ACCOUNTING") {
+    targets.push("accounting_review_items");
+  } else if (routingSelected === "TAX") {
+    targets.push("tax_review_items");
+  } else if (routingSelected === "BOTH") {
+    targets.push("accounting_review_items", "tax_review_items");
+  }
+
+  for (const table of targets) {
+    const { error: insertError } = await supabaseAdmin
+      .from(table)
+      .insert(commonFields);
+
+    if (insertError) {
+      console.error("REVIEW_ITEM_INSERT_FAILED", {
+        table,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint,
+        code: insertError.code
+      });
+    }
+  }
+}
 /* ============================================================
    HANDLER
 ============================================================ */
