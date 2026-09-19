@@ -168,6 +168,50 @@ async function handlePost(
      ROUTE TO REVIEW TABLES (jika APPROVE)
   ============================================================ */
 
+  function buildExtractedData(parsed: any): any {
+
+  if (!parsed || typeof parsed !== "object") {
+    return null;
+  }
+
+  if (
+    parsed.fields &&
+    typeof parsed.fields === "object" &&
+    Object.keys(parsed.fields).length > 0
+  ) {
+    return {
+      kind: "FIELDS",
+      fields: parsed.fields
+    };
+  }
+
+  if (Array.isArray(parsed.sheets)) {
+
+    const sheets = parsed.sheets
+      .map((sheet: any) => ({
+        sheet_name: sheet.sheet_name,
+        line_items:
+          Array.isArray(sheet.line_items)
+            ? sheet.line_items.filter(
+                (item: any) => item.value !== null
+              )
+            : []
+      }))
+      .filter(
+        (sheet: any) => sheet.line_items.length > 0
+      );
+
+    if (sheets.length > 0) {
+      return {
+        kind: "SPREADSHEET",
+        sheets
+      };
+    }
+  }
+
+  return null;
+  }
+  
   if (decision === "APPROVE") {
     let context: any = {};
     try {
@@ -187,7 +231,7 @@ async function handlePost(
         .eq("id", context.ingestion_job_id)
         .maybeSingle();
 
-      extractedData = jobRow?.extraction?.parsed?.fields ?? null;
+      extractedData = buildExtractedData(jobRow?.extraction?.parsed ?? null);
     }
 
     const routingSelected = context?.routing?.selected;
