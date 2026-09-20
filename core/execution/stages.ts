@@ -156,15 +156,51 @@ function inferDocumentType(
   return "GENERAL_FILE";
 }
 
+function extractSearchableText(
+  extraction?: JsonRecord
+): string {
+  if (!extraction || typeof extraction !== "object") {
+    return "";
+  }
+
+  const parsed = (extraction as any).parsed;
+
+  if (!parsed || typeof parsed !== "object") {
+    return "";
+  }
+
+  if (parsed.fields && typeof parsed.fields === "object") {
+    return JSON.stringify(parsed.fields);
+  }
+
+  if (Array.isArray(parsed.sheets)) {
+    const labels = parsed.sheets.flatMap((sheet: any) => {
+      if (Array.isArray(sheet.line_items)) {
+        return sheet.line_items.map(
+          (item: any) => item.label ?? ""
+        );
+      }
+      if (Array.isArray(sheet.records)) {
+        return sheet.records.map(
+          (record: any) => JSON.stringify(record)
+        );
+      }
+      return [sheet.sheet_name ?? ""];
+    });
+
+    return labels.join(" ");
+  }
+
+  return "";
+}
+
 function inferDomains(
   object: DataObjectRow,
   extraction?: JsonRecord
 ): string[] {
 
   const extractedText =
-    extraction && typeof extraction === "object"
-      ? JSON.stringify((extraction as any).parsed?.fields ?? {})
-      : "";
+    extractSearchableText(extraction);
 
   const text = [
     object.name,
