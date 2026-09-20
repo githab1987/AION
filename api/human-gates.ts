@@ -223,15 +223,20 @@ async function handlePost(
     }
 
     let extractedData: any = null;
+    let domains: string[] = [];
 
     if (context?.ingestion_job_id) {
       const { data: jobRow } = await supabaseAdmin
         .from("ingestion_jobs")
-        .select("extraction")
+        .select("extraction, classification")
         .eq("id", context.ingestion_job_id)
         .maybeSingle();
 
       extractedData = buildExtractedData(jobRow?.extraction?.parsed ?? null);
+
+      domains = Array.isArray(jobRow?.classification?.domains)
+        ? jobRow.classification.domains
+        : [];
     }
 
     const routingSelected = context?.routing?.selected;
@@ -250,14 +255,16 @@ async function handlePost(
 
     const targets: string[] = [];
 
-    if (routingSelected === "INVESTIGATE") {
+    if (domains.includes("INVESTIGATE")) {
       targets.push("investigation_items");
-    } else if (routingSelected === "ACCOUNTING") {
+    }
+
+    if (domains.includes("ACCOUNTING")) {
       targets.push("accounting_review_items");
-    } else if (routingSelected === "TAX") {
+    }
+
+    if (domains.includes("TAX")) {
       targets.push("tax_review_items");
-    } else if (routingSelected === "BOTH") {
-      targets.push("accounting_review_items", "tax_review_items");
     }
 
     for (const table of targets) {
