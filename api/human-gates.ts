@@ -147,6 +147,45 @@ function buildDomainInsight(
   return `File "${sourceName}" - ${parts.join(" ")}`;
 }
 
+async function attachInsight(gate: any): Promise<any> {
+
+  let context: any = {};
+  try {
+    context =
+      typeof gate.context === "string"
+        ? JSON.parse(gate.context)
+        : (gate.context || {});
+  } catch {
+    return gate;
+  }
+
+  if (!context?.ingestion_job_id) {
+    return gate;
+  }
+
+  const { data: jobRow } = await supabaseAdmin
+    .from("ingestion_jobs")
+    .select("extraction, classification, source_name")
+    .eq("id", context.ingestion_job_id)
+    .maybeSingle();
+
+  const domains = Array.isArray(jobRow?.classification?.domains)
+    ? jobRow.classification.domains
+    : [];
+
+  if (domains.length === 0) {
+    return gate;
+  }
+
+  const insight = buildDomainInsight(
+    domains,
+    jobRow?.extraction?.parsed ?? null,
+    jobRow?.source_name ?? "file"
+  );
+
+  return { ...gate, reason: insight };
+}
+
 /* ============================================================
    GET - daftar human gate untuk workspace
 ============================================================ */
