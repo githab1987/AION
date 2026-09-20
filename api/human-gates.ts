@@ -55,69 +55,81 @@ function buildDomainInsight(
     }
   }
 
-  const findByLabel = (keyword: string) =>
-    allLineItems.filter(
-      (item) =>
-        typeof item.label === "string" &&
-        item.label.toLowerCase().includes(keyword)
-    );
-
   const rupiah = (n: number) =>
     "Rp" + Math.round(Math.abs(n)).toLocaleString("id-ID");
 
   const parts: string[] = [];
 
   if (domains.includes("ACCOUNTING")) {
-    const aktiva = findByLabel("jumlah aktiva");
-    const kewajiban = findByLabel("jumlah kewajiban");
 
-    if (aktiva.length > 0 && typeof aktiva[0].value === "number") {
-      const totalAktiva = aktiva[0].value;
-      const totalKewajiban = kewajiban.reduce(
-        (sum, item) =>
-          sum + (typeof item.value === "number" ? item.value : 0),
-        0
+    // batasi cuma ke sheet yang namanya mengandung "balance sheet"
+    // atau "neraca" - biar ga kecampur sheet lain.
+    const balanceItems = allLineItems.filter(
+      (item) =>
+        typeof item.sheet_name === "string" &&
+        /balance sheet|neraca/i.test(item.sheet_name)
+    );
+
+    const findExact = (keyword: string) =>
+      balanceItems.find(
+        (item) =>
+          typeof item.label === "string" &&
+          item.label.toLowerCase().trim() === keyword
       );
 
-      const selisih = totalAktiva - totalKewajiban;
+    const aktiva = findExact("jumlah aktiva");
+    const kewajibanLancar = findExact("jumlah kewajiban lancar");
+    const kewajibanPanjang = findExact(
+      "jumlah kewajiban jangka panjang"
+    );
 
+    if (aktiva && typeof aktiva.value === "number") {
+      const totalKewajiban =
+        (typeof kewajibanLancar?.value === "number"
+          ? kewajibanLancar.value
+          : 0) +
+        (typeof kewajibanPanjang?.value === "number"
+          ? kewajibanPanjang.value
+          : 0);
+
+      if (kewajibanLancar || kewajibanPanjang) {
+        parts.push(
+          `Akuntansi: Jumlah Aktiva ${rupiah(aktiva.value)}, ` +
+            `Jumlah Kewajiban ${rupiah(totalKewajiban)} ` +
+            `(belum termasuk ekuitas - bandingkan manual dengan Modal & Laba Ditahan).`
+        );
+      } else {
+        parts.push(
+          `Akuntansi: Jumlah Aktiva ${rupiah(aktiva.value)}.`
+        );
+      }
+    } else if (balanceItems.length > 0) {
       parts.push(
-        `Akuntansi: Jumlah Aktiva ${rupiah(totalAktiva)}` +
-          (kewajiban.length > 0
-            ? `, Jumlah Kewajiban ${rupiah(totalKewajiban)}` +
-              (Math.abs(selisih) < 1
-                ? " - neraca balance."
-                : ` - selisih ${rupiah(selisih)}, perlu rekonsiliasi.`)
-            : ".")
-      );
-    } else if (allLineItems.length > 0) {
-      parts.push(
-        `Akuntansi: ${allLineItems.length} baris akun ditemukan.`
+        `Akuntansi: ${balanceItems.length} baris neraca ditemukan.`
       );
     }
   }
 
   if (domains.includes("TAX")) {
+
     const taxItems = allLineItems.filter(
       (item) =>
         typeof item.sheet_name === "string" &&
-        /pph|pajak|prepaid/i.test(item.sheet_name)
+        /pph|pajak|prepaid/i.test(item.sheet_name) &&
+        typeof item.value === "number" &&
+        item.value !== 0
     );
 
     if (taxItems.length > 0) {
       const totalTax = taxItems.reduce(
-        (sum, item) =>
-          sum +
-          (typeof item.value === "number"
-            ? Math.abs(item.value)
-            : 0),
+        (sum, item) => sum + Math.abs(item.value),
         0
       );
 
       parts.push(
-        `Pajak: ${taxItems.length} pos ditemukan (total nilai absolut ${rupiah(
-          totalTax
-        )}) - perlu dicocokkan dengan data akuntansi.`
+        `Pajak: ${taxItems.length} pos bernilai tidak-nol ditemukan ` +
+          `(total nilai absolut ${rupiah(totalTax)}) - ` +
+          `perlu dicocokkan dengan data akuntansi.`
       );
     }
   }
@@ -133,45 +145,6 @@ function buildDomainInsight(
   }
 
   return `File "${sourceName}" - ${parts.join(" ")}`;
-}
-
-async function attachInsight(gate: any): Promise<any> {
-
-  let context: any = {};
-  try {
-    context =
-      typeof gate.context === "string"
-        ? JSON.parse(gate.context)
-        : (gate.context || {});
-  } catch {
-    return gate;
-  }
-
-  if (!context?.ingestion_job_id) {
-    return gate;
-  }
-
-  const { data: jobRow } = await supabaseAdmin
-    .from("ingestion_jobs")
-    .select("extraction, classification, source_name")
-    .eq("id", context.ingestion_job_id)
-    .maybeSingle();
-
-  const domains = Array.isArray(jobRow?.classification?.domains)
-    ? jobRow.classification.domains
-    : [];
-
-  if (domains.length === 0) {
-    return gate;
-  }
-
-  const insight = buildDomainInsight(
-    domains,
-    jobRow?.extraction?.parsed ?? null,
-    jobRow?.source_name ?? "file"
-  );
-
-  return { ...gate, reason: insight };
 }
 
 /* ============================================================
