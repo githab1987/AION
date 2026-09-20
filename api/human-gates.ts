@@ -38,6 +38,142 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+function buildDomainInsight(
+  domains: string[],
+  parsed: any,
+  sourceName: string
+): string {
+
+  const sheets = Array.isArray(parsed?.sheets) ? parsed.sheets : [];
+  const allLineItems: any[] = [];
+
+  for (const sheet of sheets) {
+    if (Array.isArray(sheet.line_items)) {
+      for (const item of sheet.line_items) {
+        allLineItems.push({ ...item, sheet_name: sheet.sheet_name });
+      }
+    }
+  }
+
+  const findByLabel = (keyword: string) =>
+    allLineItems.filter(
+      (item) =>
+        typeof item.label === "string" &&
+        item.label.toLowerCase().includes(keyword)
+    );
+
+  const rupiah = (n: number) =>
+    "Rp" + Math.round(Math.abs(n)).toLocaleString("id-ID");
+
+  const parts: string[] = [];
+
+  if (domains.includes("ACCOUNTING")) {
+    const aktiva = findByLabel("jumlah aktiva");
+    const kewajiban = findByLabel("jumlah kewajiban");
+
+    if (aktiva.length > 0 && typeof aktiva[0].value === "number") {
+      const totalAktiva = aktiva[0].value;
+      const totalKewajiban = kewajiban.reduce(
+        (sum, item) =>
+          sum + (typeof item.value === "number" ? item.value : 0),
+        0
+      );
+
+      const selisih = totalAktiva - totalKewajiban;
+
+      parts.push(
+        `Akuntansi: Jumlah Aktiva ${rupiah(totalAktiva)}` +
+          (kewajiban.length > 0
+            ? `, Jumlah Kewajiban ${rupiah(totalKewajiban)}` +
+              (Math.abs(selisih) < 1
+                ? " - neraca balance."
+                : ` - selisih ${rupiah(selisih)}, perlu rekonsiliasi.`)
+            : ".")
+      );
+    } else if (allLineItems.length > 0) {
+      parts.push(
+        `Akuntansi: ${allLineItems.length} baris akun ditemukan.`
+      );
+    }
+  }
+
+  if (domains.includes("TAX")) {
+    const taxItems = allLineItems.filter(
+      (item) =>
+        typeof item.sheet_name === "string" &&
+        /pph|pajak|prepaid/i.test(item.sheet_name)
+    );
+
+    if (taxItems.length > 0) {
+      const totalTax = taxItems.reduce(
+        (sum, item) =>
+          sum +
+          (typeof item.value === "number"
+            ? Math.abs(item.value)
+            : 0),
+        0
+      );
+
+      parts.push(
+        `Pajak: ${taxItems.length} pos ditemukan (total nilai absolut ${rupiah(
+          totalTax
+        )}) - perlu dicocokkan dengan data akuntansi.`
+      );
+    }
+  }
+
+  if (domains.includes("INVESTIGATE") && parts.length === 0) {
+    parts.push(
+      "Tidak ditemukan pola akuntansi/pajak yang jelas - perlu ditinjau manual."
+    );
+  }
+
+  if (parts.length === 0) {
+    return `File "${sourceName}" diklasifikasikan sebagai ${domains.join(" & ")}.`;
+  }
+
+  return `File "${sourceName}" - ${parts.join(" ")}`;
+}
+
+async function attachInsight(gate: any): Promise<any> {
+
+  let context: any = {};
+  try {
+    context =
+      typeof gate.context === "string"
+        ? JSON.parse(gate.context)
+        : (gate.context || {});
+  } catch {
+    return gate;
+  }
+
+  if (!context?.ingestion_job_id) {
+    return gate;
+  }
+
+  const { data: jobRow } = await supabaseAdmin
+    .from("ingestion_jobs")
+    .select("extraction, classification, source_name")
+    .eq("id", context.ingestion_job_id)
+    .maybeSingle();
+
+  const domains = Array.isArray(jobRow?.classification?.domains)
+    ? jobRow.classification.domains
+    : [];
+
+  if (domains.length === 0) {
+    return gate;
+  }
+
+  const insight = buildDomainInsight(
+    domains,
+    jobRow?.extraction?.parsed ?? null,
+    jobRow?.source_name ?? "file"
+  );
+
+  return { ...gate, reason: insight };
+}
+
 /* ============================================================
    GET - daftar human gate untuk workspace
 ============================================================ */
@@ -76,12 +212,16 @@ async function handleGet(
     );
   }
 
+  const enrichedGates = await Promise.all(
+    (data ?? []).map((gate) => attachInsight(gate))
+  );
+
   return json(res, 200, {
     ok: true,
     service: "SPECIAL ALI",
     component: "HUMAN_GATE",
-    count: data?.length ?? 0,
-    human_gates: data ?? []
+    count: enrichedGates.length,
+    human_gates: enrichedGates
   });
 }
 
